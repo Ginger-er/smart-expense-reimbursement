@@ -1,0 +1,28 @@
+# ===== 敏感配置（真实密钥，勿提交）=====
+server/src/main/resources/application-dev.yml
+application-dev.yml
+application-local.yml
+
+# ===== Java / Maven =====
+server/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ===== 前端 =====
+web-admin/node_modules/
+web-admin/dist/
+web-admin/.vite/
+
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+
+# ===== 运行时 =====
+uploads/
+server/uploads/
+logs/
+*.log

@@ -1,0 +1,30 @@
+package com.smartexpense.service;
+
+import com.smartexpense.entity.Invoice;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+
+public interface InvoiceService {
+
+    /** 上传发票文件，可关联出差/报销单 */
+    Invoice upload(MultipartFile file, Long tripId, Long reimbursementId);
+
+    /** OCR识别发票信息 */
+    Invoice ocrRecognize(Long invoiceId);
+
+    /** 校验发票真伪 */
+    Invoice validate(Long invoiceId);
+
+    /** 人工确认/修正发票信息 */
+    Invoice confirm(Long invoiceId, Invoice invoice);
+
+    /** 查询发票列表 */
+    List<Invoice> list(Long tripId, Long reimbursementId);
+
+    /** 根据ID查询 */
+    Invoice getById(Long id);
+
+    /** 删除发票 */
+    void delete(Long id);
+}

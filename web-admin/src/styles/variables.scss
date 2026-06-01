@@ -1,0 +1,67 @@
+// ========================================
+// 智能差旅报销系统 - 设计变量 v2
+// ========================================
+
+// ---- 主色系 ----
+$color-primary: #1a1a2e;
+$color-primary-light: #2d2d4a;
+$color-secondary: #16213e;
+$color-accent: #4f46e5;
+
+// ---- 功能色 ----
+$color-success: #10b981;
+$color-warning: #f59e0b;
+$color-danger: #ef4444;
+$color-info: #3b82f6;
+
+// ---- 背景色 ----
+$bg-page: #f1f5f9;
+$bg-white: #ffffff;
+$bg-card: #ffffff;
+$bg-dark: #0f172a;
+$bg-sidebar: #0f172a;
+
+// ---- 文字色 ----
+$text-primary: #0f172a;
+$text-regular: #334155;
+$text-secondary: #64748b;
+$text-placeholder: #94a3b8;
+$text-white: #ffffff;
+
+// ---- 边框 ----
+$border-color: #e2e8f0;
+$border-light: #f1f5f9;
+
+// ---- 间距 ----
+$spacing-page: 28px;
+$spacing-card-padding: 24px;
+$spacing-card-gap: 20px;
+
+// ---- 字体层级 ----
+$font-size-page-title: 22px;
+$font-size-card-title: 15px;
+$font-size-body: 14px;
+$font-size-auxiliary: 12px;
+
+$font-weight-page-title: 700;
+$font-weight-card-title: 600;
+$font-weight-body: 400;
+
+// ---- 圆角 ----
+$radius-card: 14px;
+$radius-button: 10px;
+$radius-sm: 8px;
+$radius-xs: 6px;
+
+// ---- 阴影 ----
+$shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+$shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.04);
+$shadow-md: 0 4px 6px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.06);
+
+// ---- 表格 ----
+$table-row-height: 52px;
+
+// ---- 布局 ----
+$header-height: 60px;
+$sidebar-width: 240px;

@@ -1,0 +1,306 @@
+// ========================================
+// 智能差旅报销系统 - Element Plus 样式覆盖 v2
+// ========================================
+
+@use './variables.scss' as *;
+
+// ---- CSS 变量覆盖 ----
+:root {
+  --el-color-primary: #{$color-accent};
+  --el-color-primary-light-3: #{lighten($color-accent, 10%)};
+  --el-color-primary-light-5: #{lighten($color-accent, 20%)};
+  --el-color-primary-light-7: #{lighten($color-accent, 30%)};
+  --el-color-primary-light-8: #{lighten($color-accent, 35%)};
+  --el-color-primary-light-9: #{lighten($color-accent, 40%)};
+  --el-color-primary-dark-2: #{darken($color-accent, 10%)};
+  --el-color-success: #{$color-success};
+  --el-color-success-light-3: #{lighten($color-success, 10%)};
+  --el-color-success-light-5: #{lighten($color-success, 20%)};
+  --el-color-success-light-7: #{lighten($color-success, 30%)};
+  --el-color-success-light-8: #{lighten($color-success, 35%)};
+  --el-color-success-light-9: #{lighten($color-success, 40%)};
+  --el-color-success-dark-2: #{darken($color-success, 10%)};
+  --el-color-warning: #{$color-warning};
+  --el-color-warning-light-3: #{lighten($color-warning, 10%)};
+  --el-color-warning-light-5: #{lighten($color-warning, 20%)};
+  --el-color-warning-light-7: #{lighten($color-warning, 30%)};
+  --el-color-warning-light-8: #{lighten($color-warning, 35%)};
+  --el-color-warning-light-9: #{lighten($color-warning, 40%)};
+  --el-color-warning-dark-2: #{darken($color-warning, 10%)};
+  --el-color-danger: #{$color-danger};
+  --el-color-danger-light-3: #{lighten($color-danger, 10%)};
+  --el-color-danger-light-5: #{lighten($color-danger, 20%)};
+  --el-color-danger-light-7: #{lighten($color-danger, 30%)};
+  --el-color-danger-light-8: #{lighten($color-danger, 35%)};
+  --el-color-danger-light-9: #{lighten($color-danger, 40%)};
+  --el-color-danger-dark-2: #{darken($color-danger, 10%)};
+  --el-color-info: #{$color-info};
+  --el-color-info-light-3: #{lighten($color-info, 10%)};
+  --el-color-info-light-5: #{lighten($color-info, 20%)};
+  --el-color-info-light-7: #{lighten($color-info, 30%)};
+  --el-color-info-light-8: #{lighten($color-info, 35%)};
+  --el-color-info-light-9: #{lighten($color-info, 40%)};
+  --el-color-info-dark-2: #{darken($color-info, 10%)};
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-font-size-base: #{$font-size-body};
+}
+
+// ---- 卡片 ----
+.el-card {
+  border-radius: $radius-card !important;
+  box-shadow: $shadow-sm !important;
+  border: 1px solid $border-color !important;
+  transition: box-shadow 0.2s ease !important;
+
+  &:hover {
+    box-shadow: $shadow-card !important;
+  }
+
+  .el-card__header {
+    padding: 20px 24px 0;
+    border-bottom: none;
+    font-size: $font-size-card-title;
+    font-weight: $font-weight-card-title;
+    color: $text-primary;
+  }
+
+  .el-card__body {
+    padding: $spacing-card-padding;
+  }
+}
+
+// ---- 表格 ----
+.el-table {
+  --el-table-row-height: #{$table-row-height};
+  --el-table-border-color: #{$border-color};
+  --el-table-header-bg-color: #f8fafc;
+  border-radius: $radius-sm;
+  overflow: hidden;
+
+  th.el-table__cell {
+    background-color: #f8fafc;
+    font-weight: 600;
+    color: $text-secondary;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    height: 44px;
+    border-bottom: 2px solid $border-color;
+  }
+
+  .el-table__row {
+    height: $table-row-height;
+    transition: background-color 0.15s ease;
+
+    &:hover > td.el-table__cell {
+      background-color: #f8fafc;
+    }
+  }
+
+  td.el-table__cell {
+    border-bottom: 1px solid $border-light;
+    color: $text-regular;
+  }
+}
+
+// ---- 表单 ----
+.el-form-item__label {
+  font-weight: 500;
+  color: $text-regular;
+  font-size: $font-size-body;
+}
+
+.el-input__wrapper {
+  border-radius: $radius-xs;
+  box-shadow: none !important;
+  border: 1px solid $border-color;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    border-color: #cbd5e1;
+  }
+
+  &.is-focus {
+    border-color: $color-accent;
+    box-shadow: 0 0 0 3px rgba($color-accent, 0.12) !important;
+  }
+}
+
+// ---- 按钮 ----
+.el-button {
+  border-radius: $radius-button;
+  font-weight: 500;
+  transition: all 0.2s ease;
+
+  // 实心彩色按钮：强制背景 + 边框 + 白色文字，
+  // 避免 CSS 变量级联失效导致「白底白字」文字不可见
+  @each $type, $color in
+    (primary: $color-accent, success: $color-success, danger: $color-danger,
+     warning: $color-warning, info: $color-info)
+  {
+    &--#{$type} {
+      box-shadow: $shadow-xs;
+
+      &:not(.is-plain):not(.is-text):not(.is-link) {
+        background-color: #{$color} !important;
+        border-color: #{$color} !important;
+        color: #{$text-white} !important;
+
+        &:hover {
+          background-color: #{darken($color, 8%)} !important;
+          border-color: #{darken($color, 8%)} !important;
+        }
+      }
+    }
+  }
+
+  &--default {
+    --el-button-bg-color: #{$bg-white};
+    --el-button-border-color: #{$border-color};
+    --el-button-hover-bg-color: #f8fafc;
+    --el-button-hover-border-color: #cbd5e1;
+  }
+}
+
+// ---- 标签 ----
+.el-tag {
+  border-radius: 6px;
+  font-weight: 500;
+  border: none;
+
+  &--small {
+    padding: 2px 10px;
+    font-size: 12px;
+  }
+}
+
+// ---- 分页 ----
+.el-pagination {
+  margin-top: 20px;
+  justify-content: flex-end;
+
+  .el-pager li {
+    border-radius: 6px;
+    font-weight: 500;
+  }
+
+  .btn-prev, .btn-next {
+    border-radius: 6px;
+  }
+}
+
+// ---- 对话框 ----
+.el-dialog {
+  border-radius: $radius-card;
+  box-shadow: $shadow-md;
+  overflow: hidden;
+
+  .el-dialog__header {
+    padding: 20px 24px;
+    border-bottom: 1px solid $border-light;
+    margin-right: 0;
+
+    .el-dialog__title {
+      font-size: 16px;
+      font-weight: 600;
+      color: $text-primary;
+    }
+  }
+
+  .el-dialog__body {
+    padding: 24px;
+  }
+
+  .el-dialog__footer {
+    padding: 16px 24px;
+    border-top: 1px solid $border-light;
+  }
+}
+
+// ---- 下拉菜单 ----
+.el-dropdown-menu {
+  border-radius: $radius-sm;
+  box-shadow: $shadow-md;
+  border: 1px solid $border-color;
+  padding: 4px;
+
+  .el-dropdown-menu__item {
+    border-radius: 6px;
+    padding: 0 12px;
+    line-height: 36px;
+    font-size: 13px;
+  }
+}
+
+// ---- 选择器 ----
+.el-select {
+  .el-select__wrapper {
+    border-radius: $radius-xs;
+  }
+}
+
+// ---- 日期选择器 ----
+.el-date-editor {
+  --el-date-editor-daterange-width: 260px;
+}
+
+// ---- 选项卡 ----
+.el-tabs {
+  .el-tabs__header {
+    margin-bottom: 20px;
+  }
+
+  .el-tabs__item {
+    font-weight: 500;
+    font-size: $font-size-body;
+    color: $text-secondary;
+    padding: 0 20px;
+
+    &.is-active {
+      color: $color-accent;
+      font-weight: 600;
+    }
+  }
+
+  .el-tabs__active-bar {
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  .el-tabs__nav-wrap::after {
+    height: 1px;
+    background: $border-color;
+  }
+}
+
+// ---- 消息提示 ----
+.el-message {
+  border-radius: 10px;
+  box-shadow: $shadow-md;
+  border: none;
+}
+
+// ---- 加载 ----
+.el-loading-mask {
+  border-radius: $radius-card;
+}
+
+// ---- Badge ----
+.el-badge__content {
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+// ---- Radio Button ----
+.el-radio-button {
+  .el-radio-button__inner {
+    border-radius: 0;
+  }
+}
+
+// ---- Alert ----
+.el-alert {
+  border-radius: $radius-sm;
+}
