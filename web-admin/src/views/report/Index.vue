@@ -204,14 +204,25 @@ const fetchData = async () => {
   loading.value = true
   try {
     const [startDate, endDate] = query.dateRange || [null, null]
-    const res: any = await getReimbursementList({
-      pageNum: 1,
-      pageSize: 100000,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined
-    })
+    // 后端分页插件单页上限 100 条，循环翻页取全量，避免报表明细被静默截断
+    const all: any[] = []
+    let pageNum = 1
+    while (true) {
+      const res: any = await getReimbursementList({
+        pageNum,
+        pageSize: 100,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined
+      })
+      const list = (res.data || []) as any[]
+      all.push(...list)
+      if (list.length < 100) {
+        break
+      }
+      pageNum++
+    }
     // 明细与统计卡片口径一致：排除草稿
-    allDetail.value = (res.data || []).filter((r: any) => r.status !== 0)
+    allDetail.value = all.filter((r: any) => r.status !== 0)
   } catch {
     /* 错误已由拦截器提示 */
   } finally {

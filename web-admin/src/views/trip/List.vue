@@ -57,6 +57,7 @@
               <el-button text type="primary" size="small" @click="handleView(row)">查看</el-button>
               <el-button v-if="row.status === 0 && (row.userId === userStore.userInfo?.id || userStore.userInfo?.role === 4)" text type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
               <el-button v-if="row.status === 0 && (row.userId === userStore.userInfo?.id || userStore.userInfo?.role === 4)" text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+              <el-button v-if="row.status === 4 && (row.userId === userStore.userInfo?.id || userStore.userInfo?.role === 4)" text type="warning" size="small" @click="handleResubmit(row)">重新提交</el-button>
             </div>
           </template>
         </el-table-column>
@@ -85,7 +86,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatYuan, formatDate } from '@/utils/format'
 import { tripStatus } from '@/utils/status'
 import { Plus } from '@element-plus/icons-vue'
-import { getTripList, deleteTrip } from '@/api/trip'
+import { getTripList, deleteTrip, submitTrip } from '@/api/trip'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -148,6 +149,16 @@ const handleDelete = async (row: any) => {
     fetchData()
   } catch {
     /* 错误已由拦截器提示（如非草稿不可删除） */
+  }
+}
+
+const handleResubmit = async (row: any) => {
+  try {
+    await submitTrip(row.id)
+    ElMessage.success('已重新提交，等待审批')
+    fetchData()
+  } catch {
+    /* 错误已由拦截器提示 */
   }
 }
 

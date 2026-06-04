@@ -41,36 +41,53 @@ function mapTrip(t: any): ApprovalItem {
   }
 }
 
+// 后端分页插件单页上限 100 条，pageSize 传 500 会被静默截断导致漏单，
+// 这里循环翻页取回全量数据
+async function fetchAll(fetcher: (pageNum: number) => Promise<any>): Promise<any[]> {
+  const all: any[] = []
+  let pageNum = 1
+  while (true) {
+    const res: any = await fetcher(pageNum)
+    const list = (res?.data || []) as any[]
+    all.push(...list)
+    if (list.length < 100) {
+      break
+    }
+    pageNum++
+  }
+  return all
+}
+
 // 待审批：报销(status 1,2) + 出差(status 1,2)
 export async function getPendingApprovals(params: { keyword?: string }) {
-  const base = { pageNum: 1, pageSize: 500, keyword: params.keyword }
-  const results = await Promise.all([
-    getReimbursementList({ ...base, status: 1 }),
-    getReimbursementList({ ...base, status: 2 }),
-    getTripList({ ...base, status: 1 }),
-    getTripList({ ...base, status: 2 })
+  const keyword = params.keyword
+  const [r1, r2, t1, t2] = await Promise.all([
+    fetchAll(pageNum => getReimbursementList({ pageNum, pageSize: 100, status: 1, keyword })),
+    fetchAll(pageNum => getReimbursementList({ pageNum, pageSize: 100, status: 2, keyword })),
+    fetchAll(pageNum => getTripList({ pageNum, pageSize: 100, status: 1, keyword })),
+    fetchAll(pageNum => getTripList({ pageNum, pageSize: 100, status: 2, keyword }))
   ])
   const items: ApprovalItem[] = []
-  ;(results[0] as any).data?.forEach((r: any) => items.push(mapReimbursement(r)))
-  ;(results[1] as any).data?.forEach((r: any) => items.push(mapReimbursement(r)))
-  ;(results[2] as any).data?.forEach((t: any) => items.push(mapTrip(t)))
-  ;(results[3] as any).data?.forEach((t: any) => items.push(mapTrip(t)))
+  r1.forEach((r: any) => items.push(mapReimbursement(r)))
+  r2.forEach((r: any) => items.push(mapReimbursement(r)))
+  t1.forEach((t: any) => items.push(mapTrip(t)))
+  t2.forEach((t: any) => items.push(mapTrip(t)))
   return items
 }
 
 // 已审批：报销(status 3,4) + 出差(status 3,4)
 export async function getProcessedApprovals(params: { keyword?: string }) {
-  const base = { pageNum: 1, pageSize: 500, keyword: params.keyword }
-  const results = await Promise.all([
-    getReimbursementList({ ...base, status: 3 }),
-    getReimbursementList({ ...base, status: 4 }),
-    getTripList({ ...base, status: 3 }),
-    getTripList({ ...base, status: 4 })
+  const keyword = params.keyword
+  const [r1, r2, t1, t2] = await Promise.all([
+    fetchAll(pageNum => getReimbursementList({ pageNum, pageSize: 100, status: 3, keyword })),
+    fetchAll(pageNum => getReimbursementList({ pageNum, pageSize: 100, status: 4, keyword })),
+    fetchAll(pageNum => getTripList({ pageNum, pageSize: 100, status: 3, keyword })),
+    fetchAll(pageNum => getTripList({ pageNum, pageSize: 100, status: 4, keyword }))
   ])
   const items: ApprovalItem[] = []
-  ;(results[0] as any).data?.forEach((r: any) => items.push(mapReimbursement(r)))
-  ;(results[1] as any).data?.forEach((r: any) => items.push(mapReimbursement(r)))
-  ;(results[2] as any).data?.forEach((t: any) => items.push(mapTrip(t)))
-  ;(results[3] as any).data?.forEach((t: any) => items.push(mapTrip(t)))
+  r1.forEach((r: any) => items.push(mapReimbursement(r)))
+  r2.forEach((r: any) => items.push(mapReimbursement(r)))
+  t1.forEach((t: any) => items.push(mapTrip(t)))
+  t2.forEach((t: any) => items.push(mapTrip(t)))
   return items
 }

@@ -80,6 +80,7 @@
                   <el-button text type="danger" size="small">删除</el-button>
                 </template>
               </el-popconfirm>
+              <el-button v-if="row.status === 4 && (row.userId === userStore.userInfo?.id || userStore.userInfo?.role === 4)" text type="warning" size="small" @click="handleResubmit(row)">重新提交</el-button>
               <el-popconfirm v-if="row.status === 3 && (userStore.userInfo?.role === 3 || userStore.userInfo?.role === 4)" title="确认打款？" @confirm="handlePay(row)">
                 <template #reference>
                   <el-button text type="success" size="small">打款</el-button>
@@ -112,7 +113,7 @@ import { ElMessage } from 'element-plus'
 import { formatYuan, formatDate } from '@/utils/format'
 import { reimbursementStatus } from '@/utils/status'
 import { Plus, Download } from '@element-plus/icons-vue'
-import { getReimbursementList, deleteReimbursement, payReimbursement, exportReimbursement } from '@/api/reimbursement'
+import { getReimbursementList, deleteReimbursement, payReimbursement, exportReimbursement, submitReimbursement } from '@/api/reimbursement'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -180,6 +181,16 @@ const handlePay = async (row: any) => {
     fetchData()
   } catch {
     /* 错误已由拦截器提示（如非已通过不可打款） */
+  }
+}
+
+const handleResubmit = async (row: any) => {
+  try {
+    await submitReimbursement(row.id)
+    ElMessage.success('已重新提交，等待审批')
+    fetchData()
+  } catch {
+    /* 错误已由拦截器提示 */
   }
 }
 

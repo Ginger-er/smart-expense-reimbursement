@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -69,8 +70,8 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (reimbursement == null) {
             throw new BusinessException("报销单不存在");
         }
-        if (reimbursement.getStatus() != 0) {
-            throw new BusinessException("只有草稿状态的报销单才能提交");
+        if (reimbursement.getStatus() != 0 && reimbursement.getStatus() != 4) {
+            throw new BusinessException("只有草稿或已驳回状态的报销单才能提交");
         }
         SysUser current = currentUser();
         if (current.getRole() != 4 && !reimbursement.getUserId().equals(current.getId())) {
@@ -93,6 +94,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         reimbursement.setTotalAmount(totalAmount);
         reimbursement.setInvoiceCount(invoices.size());
         reimbursement.setStatus(1); // 待审批
+        reimbursement.setRejectReason(null); // 重新提交时清除上次驳回原因
 
         reimbursement.setUpdateTime(LocalDateTime.now());
         updateById(reimbursement);
@@ -118,6 +120,11 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
         SysUser current = currentUser();
         int role = current.getRole();
+
+        // 防止自审自批：任何角色都不能审批自己提交的单据，否则审批流形同虚设
+        if (current.getId().equals(reimbursement.getUserId())) {
+            throw new BusinessException("不能审批自己提交的单据");
+        }
 
         // 二级审批（审批中）只能由财务/管理员操作
         if (reimbursement.getStatus() == 2 && role != 3 && role != 4) {
@@ -228,11 +235,21 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         Integer role = current.getRole();
         Long currentUserId = current.getId();
         Long deptId = role == 2 ? current.getDeptId() : null;
-        // 导出复用列表的数据范围过滤，用大分页一次性取回（演示数据量级足够）
-        Page<ReimbursementVO> page = reimbursementMapper.selectPageVO(
-                new Page<>(1, 100000), status, role, currentUserId, deptId, keyword, startDate, endDate);
+        // 导出复用列表的数据范围过滤。分页插件全局 maxLimit=100（防大查询拖垮 DB），
+        // 这里循环分页逐页取回全部数据，直到取到不足一页为止，避免导出被静默截断
+        List<ReimbursementVO> all = new ArrayList<>();
+        long pageNum = 1;
+        while (true) {
+            Page<ReimbursementVO> page = reimbursementMapper.selectPageVO(
+                    new Page<>(pageNum, 100), status, role, currentUserId, deptId, keyword, startDate, endDate);
+            all.addAll(page.getRecords());
+            if (page.getRecords().size() < 100) {
+                break;
+            }
+            pageNum++;
+        }
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        return page.getRecords().stream().map(vo -> {
+        return all.stream().map(vo -> {
             ReimbursementExportVO e = new ReimbursementExportVO();
             e.setOrderNo(vo.getOrderNo());
             e.setApplicantName(vo.getApplicantName());

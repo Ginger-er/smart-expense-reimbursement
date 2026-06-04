@@ -56,17 +56,25 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements Tr
         if (existing == null) {
             throw new BusinessException("出差申请不存在");
         }
-        if (existing.getStatus() != 0) {
-            throw new BusinessException("只有草稿状态才能修改");
+        // 草稿可修改；已驳回的修改后回到草稿状态，可重新提交
+        if (existing.getStatus() != 0 && existing.getStatus() != 4) {
+            throw new BusinessException("只有草稿或已驳回状态才能修改");
         }
         SysUser current = currentUser();
         if (current.getRole() != 4 && !existing.getUserId().equals(current.getId())) {
             throw new BusinessException("只能操作自己的单据");
         }
-        trip.setUpdateTime(LocalDateTime.now());
-        updateById(trip);
-        log.info("出差申请更新成功, id: {}", trip.getId());
-        return trip;
+        // 字段白名单：仅允许更新可编辑业务字段，status/userId/tripNo 等一律忽略，防止越权改状态跳过审批
+        existing.setDestination(trip.getDestination());
+        existing.setPurpose(trip.getPurpose());
+        existing.setStartDate(trip.getStartDate());
+        existing.setEndDate(trip.getEndDate());
+        existing.setBudgetAmount(trip.getBudgetAmount());
+        existing.setStatus(0); // 修改后重置为草稿
+        existing.setUpdateTime(LocalDateTime.now());
+        updateById(existing);
+        log.info("出差申请更新成功, id: {}", existing.getId());
+        return existing;
     }
 
     @Override
@@ -128,8 +136,8 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements Tr
     @Transactional
     public Trip submit(Long id) {
         Trip trip = getById(id);
-        if (trip.getStatus() != 0) {
-            throw new BusinessException("只有草稿状态才能提交");
+        if (trip.getStatus() != 0 && trip.getStatus() != 4) {
+            throw new BusinessException("只有草稿或已驳回状态的出差单才能提交");
         }
         SysUser current = currentUser();
         if (current.getRole() != 4 && !trip.getUserId().equals(current.getId())) {
@@ -155,6 +163,10 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements Tr
 
         // 领导只能审本部门的出差单
         SysUser current = currentUser();
+        // 防止自审自批：任何角色都不能审批自己提交的单据
+        if (current.getId().equals(trip.getUserId())) {
+            throw new BusinessException("不能审批自己提交的出差单");
+        }
         if (current.getRole() == 2) {
             SysUser applicant = userMapper.selectById(trip.getUserId());
             if (applicant == null || !current.getDeptId().equals(applicant.getDeptId())) {

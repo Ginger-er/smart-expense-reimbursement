@@ -163,6 +163,49 @@ class TripServiceImplTest {
     }
 
     @Test
+    void approve_ownTrip_shouldThrow() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);
+            when(userMapper.selectById(2L)).thenReturn(user(2L, 2, 2L));
+            when(tripMapper.selectById(1L)).thenReturn(trip(1L, 2L, 1));
+
+            assertThrows(BusinessException.class, () -> service.approve(1L, 1, "同意"));
+        }
+    }
+
+    @Test
+    void update_rejected_shouldResetToDraft() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);
+            when(userMapper.selectById(2L)).thenReturn(user(2L, 1, 2L));
+            when(tripMapper.selectById(1L)).thenReturn(trip(1L, 2L, 4));
+
+            Trip update = trip(1L, 2L, 4);
+            update.setDestination("上海");
+            Trip result = service.update(update);
+
+            assertEquals(0, result.getStatus());
+            assertEquals("上海", result.getDestination());
+        }
+    }
+
+    @Test
+    void update_shouldIgnoreStatusAndUserIdFromClient() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);
+            when(userMapper.selectById(2L)).thenReturn(user(2L, 1, 2L));
+            when(tripMapper.selectById(1L)).thenReturn(trip(1L, 2L, 0));
+
+            Trip update = trip(1L, 99L, 3); // 恶意传入：改归属人 + 直接置为已通过
+            update.setDestination("北京");
+            Trip result = service.update(update);
+
+            assertEquals(0, result.getStatus()); // 状态不被篡改
+            assertEquals(2L, result.getUserId()); // 归属人不变
+        }
+    }
+
+    @Test
     void getDetail_shouldFillApprovalRecords() {
         TripDetailVO detail = new TripDetailVO();
         detail.setUserId(2L);

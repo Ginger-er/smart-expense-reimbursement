@@ -215,6 +215,37 @@ class ReimbursementServiceImplTest {
     }
 
     @Test
+    void submit_rejected_shouldResubmitAndClearReason() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);
+            when(userMapper.selectById(2L)).thenReturn(user(2L, 1, 2L));
+            Reimbursement rejected = reimbursement(1L, 2L, 4, "1000");
+            rejected.setRejectReason("发票有问题");
+            when(reimbursementMapper.selectById(1L)).thenReturn(rejected);
+
+            Invoice i1 = new Invoice();
+            i1.setAmount(new BigDecimal("1000"));
+            when(invoiceMapper.selectList(any())).thenReturn(List.of(i1));
+
+            Reimbursement result = service.submit(1L);
+
+            assertEquals(1, result.getStatus());
+            assertEquals(null, result.getRejectReason());
+        }
+    }
+
+    @Test
+    void approve_ownReimbursement_shouldThrow() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);
+            when(userMapper.selectById(2L)).thenReturn(user(2L, 2, 2L));
+            when(reimbursementMapper.selectById(1L)).thenReturn(reimbursement(1L, 2L, 1, "1000"));
+
+            assertThrows(BusinessException.class, () -> service.approve(1L, 1, "同意"));
+        }
+    }
+
+    @Test
     void detail_own_shouldReturn() {
         ReimbursementDetailVO detail = new ReimbursementDetailVO();
         detail.setUserId(2L);

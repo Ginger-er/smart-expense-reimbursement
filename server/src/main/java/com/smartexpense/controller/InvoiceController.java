@@ -54,7 +54,8 @@ public class InvoiceController {
     @Operation(summary = "发票详情")
     @GetMapping("/{id}")
     public Result<Invoice> detail(@PathVariable Long id) {
-        return Result.success(invoiceService.getById(id));
+        // 走带数据范围权限校验的查询，防止任意登录用户枚举他人发票ID越权查看
+        return Result.success(invoiceService.detail(id));
     }
 
     @Operation(summary = "删除发票")

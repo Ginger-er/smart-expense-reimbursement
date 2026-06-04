@@ -221,6 +221,22 @@ public class InvoiceServiceImpl extends ServiceImpl<InvoiceMapper, Invoice> impl
     }
 
     @Override
+    public Invoice detail(Long id) {
+        Invoice invoice = getById(id);
+        SysUser current = userMapper.selectById(StpUtil.getLoginIdAsLong());
+        if (current.getRole() == 1 && !invoice.getUserId().equals(current.getId())) {
+            throw new BusinessException("只能查看自己的发票");
+        }
+        if (current.getRole() == 2) {
+            SysUser owner = userMapper.selectById(invoice.getUserId());
+            if (owner == null || owner.getDeptId() == null || !owner.getDeptId().equals(current.getDeptId())) {
+                throw new BusinessException("只能查看本部门的发票");
+            }
+        }
+        return invoice;
+    }
+
+    @Override
     @Transactional
     public void delete(Long id) {
         Invoice invoice = getById(id);
