@@ -37,6 +37,7 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements Tr
     @Override
     @Transactional
     public Trip create(Trip trip) {
+        validateDates(trip);
         String tripNo = "CC" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + RandomUtil.randomNumbers(6);
         trip.setTripNo(tripNo);
         trip.setUserId(StpUtil.getLoginIdAsLong()); // 归属当前登录用户，不信任前端传值
@@ -52,6 +53,7 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements Tr
     @Override
     @Transactional
     public Trip update(Trip trip) {
+        validateDates(trip);
         Trip existing = getById(trip.getId());
         if (existing == null) {
             throw new BusinessException("出差申请不存在");
@@ -113,6 +115,14 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements Tr
 
     private SysUser currentUser() {
         return userMapper.selectById(StpUtil.getLoginIdAsLong());
+    }
+
+    /** 服务端日期校验：前端校验仅是交互提示，接口必须兜底 */
+    private void validateDates(Trip trip) {
+        if (trip.getStartDate() != null && trip.getEndDate() != null
+                && trip.getEndDate().isBefore(trip.getStartDate())) {
+            throw new BusinessException("结束日期不能早于开始日期");
+        }
     }
 
     /** 详情查看权限：草稿私有，员工看自己，领导看本部门，财务/管理员看全部 */

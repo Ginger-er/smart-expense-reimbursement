@@ -2,6 +2,7 @@ package com.smartexpense.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.smartexpense.entity.SysUser;
+import com.smartexpense.exception.BusinessException;
 import com.smartexpense.mapper.ReportMapper;
 import com.smartexpense.mapper.SysUserMapper;
 import com.smartexpense.service.ReimbursementService;
@@ -30,6 +31,10 @@ public class ReportServiceImpl implements ReportService {
         // 数据范围：员工看自己、领导看本部门、财务/管理员看全部
         Long userId = current.getRole() == 1 ? current.getId() : null;
         Long deptId = current.getRole() == 2 ? current.getDeptId() : null;
+        // 领导部门信息缺失时不允许查询，否则部门过滤条件不生效会看到全公司数据
+        if (current.getRole() == 2 && deptId == null) {
+            throw new BusinessException("您的部门信息缺失，请联系管理员");
+        }
 
         ReportStatsVO vo = new ReportStatsVO();
         vo.setTotalAmount(reportMapper.sumTotalAmount(userId, deptId, startDate, endDate));

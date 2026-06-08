@@ -103,6 +103,12 @@ public class UserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impleme
         SysUser existing = getById(id);
         existing.setStatus(0); // 软删除
         updateById(existing);
+        // 立即踢下线：否则已登录用户的 token 最长还有 24h 有效期，禁用不生效
+        try {
+            StpUtil.kickout(id);
+        } catch (Exception e) {
+            log.warn("踢下线失败（用户可能未登录）, id: {}", id, e);
+        }
         log.info("用户禁用成功, id: {}", id);
     }
 

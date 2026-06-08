@@ -190,6 +190,25 @@ class TripServiceImplTest {
     }
 
     @Test
+    void create_endDateBeforeStartDate_shouldThrow() {
+        Trip t = new Trip();
+        t.setStartDate(java.time.LocalDate.of(2026, 8, 20));
+        t.setEndDate(java.time.LocalDate.of(2026, 8, 10));
+
+        assertThrows(BusinessException.class, () -> service.create(t));
+    }
+
+    @Test
+    void update_endDateBeforeStartDate_shouldThrow() {
+        Trip t = new Trip();
+        t.setId(1L);
+        t.setStartDate(java.time.LocalDate.of(2026, 8, 20));
+        t.setEndDate(java.time.LocalDate.of(2026, 8, 10));
+
+        assertThrows(BusinessException.class, () -> service.update(t));
+    }
+
+    @Test
     void update_shouldIgnoreStatusAndUserIdFromClient() {
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);

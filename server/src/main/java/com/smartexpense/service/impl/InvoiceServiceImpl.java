@@ -176,15 +176,56 @@ public class InvoiceServiceImpl extends ServiceImpl<InvoiceMapper, Invoice> impl
             throw new BusinessException("只能操作自己的发票");
         }
 
-        // 人工修正OCR结果
-        invoice.setInvoiceNo(updateData.getInvoiceNo());
-        invoice.setInvoiceCode(updateData.getInvoiceCode());
-        invoice.setAmount(updateData.getAmount());
-        invoice.setTaxAmount(updateData.getTaxAmount());
-        invoice.setInvoiceDate(updateData.getInvoiceDate());
-        invoice.setType(updateData.getType());
-        invoice.setSellerName(updateData.getSellerName());
-        invoice.setBuyerName(updateData.getBuyerName());
+        // 关联报销单必须为草稿：提交/审批后不允许改金额，防止汇总与明细不一致
+        if (invoice.getReimbursementId() != null) {
+            Reimbursement reimb = reimbursementMapper.selectById(invoice.getReimbursementId());
+            if (reimb == null || reimb.getStatus() != 0) {
+                throw new BusinessException("只有草稿状态的报销单才能修改发票");
+            }
+        }
+
+        // 金额合法性校验（前端 min=0 只是交互提示，服务端必须兜底）
+        if (updateData.getAmount() != null && updateData.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("发票金额必须大于0");
+        }
+
+        // 同一报销单内发票号唯一：防止同一张发票重复录入导致报销金额翻倍
+        String finalInvoiceNo = updateData.getInvoiceNo() != null ? updateData.getInvoiceNo() : invoice.getInvoiceNo();
+        if (finalInvoiceNo != null && !finalInvoiceNo.isEmpty() && invoice.getReimbursementId() != null) {
+            Long dup = invoiceMapper.selectCount(new LambdaQueryWrapper<Invoice>()
+                    .eq(Invoice::getReimbursementId, invoice.getReimbursementId())
+                    .eq(Invoice::getInvoiceNo, finalInvoiceNo)
+                    .ne(Invoice::getId, invoiceId));
+            if (dup != null && dup > 0) {
+                throw new BusinessException("该发票号已存在于本报销单中，请勿重复录入");
+            }
+        }
+
+        // 人工修正OCR结果：仅覆盖前端传过来的非空字段，防止清空 OCR 已识别的税额/发票代码等
+        if (updateData.getInvoiceNo() != null) {
+            invoice.setInvoiceNo(updateData.getInvoiceNo());
+        }
+        if (updateData.getInvoiceCode() != null) {
+            invoice.setInvoiceCode(updateData.getInvoiceCode());
+        }
+        if (updateData.getAmount() != null) {
+            invoice.setAmount(updateData.getAmount());
+        }
+        if (updateData.getTaxAmount() != null) {
+            invoice.setTaxAmount(updateData.getTaxAmount());
+        }
+        if (updateData.getInvoiceDate() != null) {
+            invoice.setInvoiceDate(updateData.getInvoiceDate());
+        }
+        if (updateData.getType() != null) {
+            invoice.setType(updateData.getType());
+        }
+        if (updateData.getSellerName() != null) {
+            invoice.setSellerName(updateData.getSellerName());
+        }
+        if (updateData.getBuyerName() != null) {
+            invoice.setBuyerName(updateData.getBuyerName());
+        }
         invoice.setOcrStatus(3); // 人工修正
 
         updateById(invoice);

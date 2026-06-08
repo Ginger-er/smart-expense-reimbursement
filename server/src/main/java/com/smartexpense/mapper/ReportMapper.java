@@ -63,8 +63,10 @@ public interface ReportMapper {
 
     @Select("<script>SELECT CASE i.type WHEN 1 THEN '交通费' WHEN 2 THEN '住宿费' WHEN 3 THEN '餐饮费' ELSE '其他' END AS name, " +
             "COALESCE(SUM(i.amount), 0) AS amount " +
-            "FROM invoice i LEFT JOIN sys_user u ON i.user_id = u.id " +
-            "WHERE i.reimbursement_id IS NOT NULL " +
+            "FROM invoice i " +
+            "JOIN reimbursement r ON i.reimbursement_id = r.id " +
+            "LEFT JOIN sys_user u ON i.user_id = u.id " +
+            "WHERE r.status != 0 " + // 与 sumTotalAmount 口径一致：排除草稿报销单
             "<if test='userId != null'>AND i.user_id = #{userId}</if>" +
             "<if test='deptId != null'>AND u.dept_id = #{deptId}</if>" +
             "<if test='startDate != null and startDate != \"\"'>AND i.create_time &gt;= #{startDate}</if>" +

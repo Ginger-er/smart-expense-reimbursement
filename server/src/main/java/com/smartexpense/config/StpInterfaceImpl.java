@@ -30,7 +30,8 @@ public class StpInterfaceImpl implements StpInterface {
         try {
             Long userId = Long.valueOf(loginId.toString());
             SysUser user = userMapper.selectById(userId);
-            if (user != null && user.getRole() != null) {
+            // 已禁用(status=0)的用户即使 token 未过期也不授予角色，接口鉴权会判定为无权限
+            if (user != null && user.getStatus() != null && user.getStatus() == 1 && user.getRole() != null) {
                 roles.add(mapRole(user.getRole()));
             }
         } catch (Exception ignored) {
