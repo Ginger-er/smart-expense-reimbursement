@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.smartexpense.entity.SysUser;
 import com.smartexpense.exception.BusinessException;
 import com.smartexpense.mapper.ReportMapper;
+import com.smartexpense.redis.StatsCache;
 import com.smartexpense.mapper.SysUserMapper;
 import com.smartexpense.service.ReimbursementService;
 import com.smartexpense.service.ReportService;
@@ -24,6 +25,7 @@ public class ReportServiceImpl implements ReportService {
     private final ReportMapper reportMapper;
     private final SysUserMapper userMapper;
     private final ReimbursementService reimbursementService;
+    private final StatsCache statsCache;
 
     @Override
     public ReportStatsVO stats(String startDate, String endDate) {
@@ -36,25 +38,30 @@ public class ReportServiceImpl implements ReportService {
             throw new BusinessException("您的部门信息缺失，请联系管理员");
         }
 
-        ReportStatsVO vo = new ReportStatsVO();
-        vo.setTotalAmount(reportMapper.sumTotalAmount(userId, deptId, startDate, endDate));
-        int totalCount = reportMapper.countTotal(userId, deptId, startDate, endDate);
-        vo.setTotalCount(totalCount);
+        // 统计缓存：7 条聚合 SQL（含 GROUP BY + JOIN）结果缓存 5 分钟，
+        // key 含角色/用户/部门/日期范围，Redis 故障自动回源数据库
+        String cacheKey = StatsCache.reportKey(current.getRole(), userId, deptId, startDate, endDate);
+        return statsCache.getOrLoad(cacheKey, ReportStatsVO.class, () -> {
+            ReportStatsVO vo = new ReportStatsVO();
+            vo.setTotalAmount(reportMapper.sumTotalAmount(userId, deptId, startDate, endDate));
+            int totalCount = reportMapper.countTotal(userId, deptId, startDate, endDate);
+            vo.setTotalCount(totalCount);
 
-        int approved = reportMapper.countApproved(userId, deptId, startDate, endDate);
-        int rejected = reportMapper.countRejected(userId, deptId, startDate, endDate);
-        int decided = approved + rejected;
-        vo.setApprovalRate(decided > 0
-                ? BigDecimal.valueOf(approved * 100.0 / decided).setScale(1, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO);
+            int approved = reportMapper.countApproved(userId, deptId, startDate, endDate);
+            int rejected = reportMapper.countRejected(userId, deptId, startDate, endDate);
+            int decided = approved + rejected;
+            vo.setApprovalRate(decided > 0
+                    ? BigDecimal.valueOf(approved * 100.0 / decided).setScale(1, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO);
 
-        vo.setAvgAmount(totalCount > 0
-                ? vo.getTotalAmount().divide(BigDecimal.valueOf(totalCount), 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO);
+            vo.setAvgAmount(totalCount > 0
+                    ? vo.getTotalAmount().divide(BigDecimal.valueOf(totalCount), 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO);
 
-        vo.setDeptRanking(reportMapper.deptRanking(userId, deptId, startDate, endDate));
-        vo.setExpenseTypes(reportMapper.expenseTypes(userId, deptId, startDate, endDate));
-        return vo;
+            vo.setDeptRanking(reportMapper.deptRanking(userId, deptId, startDate, endDate));
+            vo.setExpenseTypes(reportMapper.expenseTypes(userId, deptId, startDate, endDate));
+            return vo;
+        });
     }
 
     @Override

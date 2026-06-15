@@ -14,6 +14,7 @@ import com.smartexpense.mapper.ApprovalRecordMapper;
 import com.smartexpense.mapper.InvoiceMapper;
 import com.smartexpense.mapper.ReimbursementMapper;
 import com.smartexpense.mapper.SysUserMapper;
+import com.smartexpense.redis.RedisLock;
 import com.smartexpense.service.NoticeService;
 import com.smartexpense.service.ReimbursementService;
 import com.smartexpense.vo.ReimbursementDetailVO;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,11 +42,19 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     /** 大额报销阈值：达到该金额需两级审批（领导→财务） */
     private static final BigDecimal APPROVE_THRESHOLD = new BigDecimal("5000");
 
+    /** 提交幂等标记 key 前缀：双击/并发重复提交时互斥 */
+    private static final String IDEM_SUBMIT_PREFIX = "idem:submit:";
+    /** 审批锁 key 前缀：审批是"校验+写记录+改状态"复合操作，串行化防并发双写 */
+    private static final String LOCK_APPROVE_PREFIX = "lock:reimb:approve:";
+    /** 打款锁 key 前缀：与乐观更新构成双层防护，防并发重复打款 */
+    private static final String LOCK_PAY_PREFIX = "lock:reimb:pay:";
+
     private final ReimbursementMapper reimbursementMapper;
     private final SysUserMapper userMapper;
     private final InvoiceMapper invoiceMapper;
     private final ApprovalRecordMapper approvalRecordMapper;
     private final NoticeService noticeService;
+    private final RedisLock redisLock;
 
     @Override
     @Transactional
@@ -66,157 +76,177 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Override
     @Transactional
     public Reimbursement submit(Long id) {
-        Reimbursement reimbursement = getById(id);
-        if (reimbursement == null) {
-            throw new BusinessException("报销单不存在");
+        // 幂等互斥：SETNX 抢占标记，双击/并发提交只会成功一次；
+        // Redis 不可用时降级放行，由下方状态机校验（status 0/4 才可提交）兜底
+        String token = UUID.randomUUID().toString();
+        if (!redisLock.tryLock(IDEM_SUBMIT_PREFIX + id, token, 10)) {
+            throw new BusinessException("提交处理中，请勿重复提交");
         }
-        if (reimbursement.getStatus() != 0 && reimbursement.getStatus() != 4) {
-            throw new BusinessException("只有草稿或已驳回状态的报销单才能提交");
-        }
-        SysUser current = currentUser();
-        if (current.getRole() != 4 && !reimbursement.getUserId().equals(current.getId())) {
-            throw new BusinessException("只能操作自己的单据");
-        }
+        try {
+            Reimbursement reimbursement = getById(id);
+            if (reimbursement == null) {
+                throw new BusinessException("报销单不存在");
+            }
+            if (reimbursement.getStatus() != 0 && reimbursement.getStatus() != 4) {
+                throw new BusinessException("只有草稿或已驳回状态的报销单才能提交");
+            }
+            SysUser current = currentUser();
+            if (current.getRole() != 4 && !reimbursement.getUserId().equals(current.getId())) {
+                throw new BusinessException("只能操作自己的单据");
+            }
 
-        // 统计关联的发票
-        List<Invoice> invoices = invoiceMapper.selectList(
-                new LambdaQueryWrapper<Invoice>().eq(Invoice::getReimbursementId, id));
-        if (invoices.isEmpty()) {
-            throw new BusinessException("请先关联发票");
-        }
-        boolean hasNullAmount = invoices.stream().anyMatch(i -> i.getAmount() == null);
-        if (hasNullAmount) {
-            throw new BusinessException("存在未填写金额的发票，请先补全金额");
-        }
-        BigDecimal totalAmount = invoices.stream()
-                .map(Invoice::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        reimbursement.setTotalAmount(totalAmount);
-        reimbursement.setInvoiceCount(invoices.size());
-        reimbursement.setStatus(1); // 待审批
-        reimbursement.setRejectReason(null); // 重新提交时清除上次驳回原因
+            // 统计关联的发票
+            List<Invoice> invoices = invoiceMapper.selectList(
+                    new LambdaQueryWrapper<Invoice>().eq(Invoice::getReimbursementId, id));
+            if (invoices.isEmpty()) {
+                throw new BusinessException("请先关联发票");
+            }
+            boolean hasNullAmount = invoices.stream().anyMatch(i -> i.getAmount() == null);
+            if (hasNullAmount) {
+                throw new BusinessException("存在未填写金额的发票，请先补全金额");
+            }
+            BigDecimal totalAmount = invoices.stream()
+                    .map(Invoice::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            reimbursement.setTotalAmount(totalAmount);
+            reimbursement.setInvoiceCount(invoices.size());
+            reimbursement.setStatus(1); // 待审批
+            reimbursement.setRejectReason(null); // 重新提交时清除上次驳回原因
 
-        reimbursement.setUpdateTime(LocalDateTime.now());
-        updateById(reimbursement);
+            reimbursement.setUpdateTime(LocalDateTime.now());
+            updateById(reimbursement);
 
-        log.info("报销单提交成功, id: {}, totalAmount: {}", id, totalAmount);
-        return reimbursement;
+            log.info("报销单提交成功, id: {}, totalAmount: {}", id, totalAmount);
+            return reimbursement;
+        } finally {
+            // 无论成功失败立即释放，失败后用户可立即重试，不用等 10s 过期
+            redisLock.unlock(IDEM_SUBMIT_PREFIX + id, token);
+        }
     }
 
     @Override
     @Transactional
     public Reimbursement approve(Long id, Integer action, String comment) {
-        if (action == null || (action != 1 && action != 2)) {
-            throw new BusinessException("无效的审批操作");
-        }
-
-        Reimbursement reimbursement = getById(id);
-        if (reimbursement == null) {
-            throw new BusinessException("报销单不存在");
-        }
-        if (reimbursement.getStatus() != 1 && reimbursement.getStatus() != 2) {
-            throw new BusinessException("当前状态不可审批");
-        }
-
-        SysUser current = currentUser();
-        int role = current.getRole();
-
-        // 防止自审自批：任何角色都不能审批自己提交的单据，否则审批流形同虚设
-        if (current.getId().equals(reimbursement.getUserId())) {
-            throw new BusinessException("不能审批自己提交的单据");
-        }
-
-        // 二级审批（审批中）只能由财务/管理员操作
-        if (reimbursement.getStatus() == 2 && role != 3 && role != 4) {
-            throw new BusinessException("当前单据需财务审批");
-        }
-        // 一级审批（待审批）时，领导只能审本部门
-        if (reimbursement.getStatus() == 1 && role == 2) {
-            SysUser applicant = userMapper.selectById(reimbursement.getUserId());
-            if (applicant == null || !current.getDeptId().equals(applicant.getDeptId())) {
-                throw new BusinessException("只能审批本部门的报销单");
+        // 审批是"校验 → 插审批记录 → 改状态"的复合操作，并发时可能写入两条审批记录、
+        // 状态互相覆盖（last-write-wins），用分布式锁串行化同一单据的审批；
+        // 拿不到锁说明有请求正在处理，直接提示前端
+        return redisLock.executeWithLock(LOCK_APPROVE_PREFIX + id, 10, () -> {
+            if (action == null || (action != 1 && action != 2)) {
+                throw new BusinessException("无效的审批操作");
             }
-        }
 
-        // 记录审批
-        ApprovalRecord record = new ApprovalRecord();
-        record.setReimbursementId(id);
-        record.setApproverId(current.getId());
-        record.setAction(action);
-        record.setComment(comment);
-        record.setNodeName(reimbursement.getStatus() == 1 ? "一级审批" : "二级审批");
-        record.setCreateTime(LocalDateTime.now());
-        approvalRecordMapper.insert(record);
+            Reimbursement reimbursement = getById(id);
+            if (reimbursement == null) {
+                throw new BusinessException("报销单不存在");
+            }
+            if (reimbursement.getStatus() != 1 && reimbursement.getStatus() != 2) {
+                throw new BusinessException("当前状态不可审批");
+            }
 
-        if (action == 2) {
-            // 驳回
-            reimbursement.setStatus(4);
-            reimbursement.setRejectReason(comment);
-        } else {
-            // 通过：大额单需两级（领导→财务），小额或财务/管理员终审直接通过
-            boolean bigAmount = reimbursement.getTotalAmount() != null
-                    && reimbursement.getTotalAmount().compareTo(APPROVE_THRESHOLD) >= 0;
-            if (reimbursement.getStatus() == 1 && bigAmount && role != 3 && role != 4) {
-                reimbursement.setStatus(2);
+            SysUser current = currentUser();
+            int role = current.getRole();
+
+            // 防止自审自批：任何角色都不能审批自己提交的单据，否则审批流形同虚设
+            if (current.getId().equals(reimbursement.getUserId())) {
+                throw new BusinessException("不能审批自己提交的单据");
+            }
+
+            // 二级审批（审批中）只能由财务/管理员操作
+            if (reimbursement.getStatus() == 2 && role != 3 && role != 4) {
+                throw new BusinessException("当前单据需财务审批");
+            }
+            // 一级审批（待审批）时，领导只能审本部门
+            if (reimbursement.getStatus() == 1 && role == 2) {
+                SysUser applicant = userMapper.selectById(reimbursement.getUserId());
+                if (applicant == null || !current.getDeptId().equals(applicant.getDeptId())) {
+                    throw new BusinessException("只能审批本部门的报销单");
+                }
+            }
+
+            // 记录审批
+            ApprovalRecord record = new ApprovalRecord();
+            record.setReimbursementId(id);
+            record.setApproverId(current.getId());
+            record.setAction(action);
+            record.setComment(comment);
+            record.setNodeName(reimbursement.getStatus() == 1 ? "一级审批" : "二级审批");
+            record.setCreateTime(LocalDateTime.now());
+            approvalRecordMapper.insert(record);
+
+            if (action == 2) {
+                // 驳回
+                reimbursement.setStatus(4);
+                reimbursement.setRejectReason(comment);
             } else {
-                reimbursement.setStatus(3);
+                // 通过：大额单需两级（领导→财务），小额或财务/管理员终审直接通过
+                boolean bigAmount = reimbursement.getTotalAmount() != null
+                        && reimbursement.getTotalAmount().compareTo(APPROVE_THRESHOLD) >= 0;
+                if (reimbursement.getStatus() == 1 && bigAmount && role != 3 && role != 4) {
+                    reimbursement.setStatus(2);
+                } else {
+                    reimbursement.setStatus(3);
+                }
             }
-        }
 
-        reimbursement.setUpdateTime(LocalDateTime.now());
-        updateById(reimbursement);
+            reimbursement.setUpdateTime(LocalDateTime.now());
+            updateById(reimbursement);
 
-        // 审批结果通知申请人（仅终态：驳回或最终通过）
-        if (action == 2) {
-            String reason = comment != null && !comment.isEmpty() ? "：" + comment : "";
-            noticeService.send(reimbursement.getUserId(), "报销被驳回",
-                    "报销单 " + reimbursement.getReimburseNo() + " 已被驳回" + reason,
-                    "/reimbursement/detail/" + id);
-        } else if (reimbursement.getStatus() == 2) {
-            noticeService.send(reimbursement.getUserId(), "报销进入二级审批",
-                    "报销单 " + reimbursement.getReimburseNo() + " 已通过一级审批，进入财务二级审批",
-                    "/reimbursement/detail/" + id);
-        } else if (reimbursement.getStatus() == 3) {
-            noticeService.send(reimbursement.getUserId(), "报销审批通过",
-                    "报销单 " + reimbursement.getReimburseNo() + " 已审批通过，等待打款",
-                    "/reimbursement/detail/" + id);
-        }
+            // 审批结果通知申请人（仅终态：驳回或最终通过）
+            if (action == 2) {
+                String reason = comment != null && !comment.isEmpty() ? "：" + comment : "";
+                noticeService.send(reimbursement.getUserId(), "报销被驳回",
+                        "报销单 " + reimbursement.getReimburseNo() + " 已被驳回" + reason,
+                        "/reimbursement/detail/" + id);
+            } else if (reimbursement.getStatus() == 2) {
+                noticeService.send(reimbursement.getUserId(), "报销进入二级审批",
+                        "报销单 " + reimbursement.getReimburseNo() + " 已通过一级审批，进入财务二级审批",
+                        "/reimbursement/detail/" + id);
+            } else if (reimbursement.getStatus() == 3) {
+                noticeService.send(reimbursement.getUserId(), "报销审批通过",
+                        "报销单 " + reimbursement.getReimburseNo() + " 已审批通过，等待打款",
+                        "/reimbursement/detail/" + id);
+            }
 
-        log.info("报销单审批成功, id: {}, action: {}, newStatus: {}", id, action, reimbursement.getStatus());
-        return reimbursement;
+            log.info("报销单审批成功, id: {}, action: {}, newStatus: {}", id, action, reimbursement.getStatus());
+            return reimbursement;
+        });
     }
 
     @Override
     @Transactional
     public Reimbursement pay(Long id) {
-        Reimbursement reimbursement = getById(id);
-        if (reimbursement == null) {
-            throw new BusinessException("报销单不存在");
-        }
-        if (reimbursement.getStatus() != 3) {
-            throw new BusinessException("只有已通过的报销单才能打款");
-        }
-        SysUser current = currentUser();
-        LocalDateTime now = LocalDateTime.now();
+        // 双层防护：分布式锁挡掉并发重复打款请求；
+        // 即使锁失效（Redis 宕机/多实例锁粒度问题），下方乐观更新 WHERE status=3 依然兜底
+        return redisLock.executeWithLock(LOCK_PAY_PREFIX + id, 10, () -> {
+            Reimbursement reimbursement = getById(id);
+            if (reimbursement == null) {
+                throw new BusinessException("报销单不存在");
+            }
+            if (reimbursement.getStatus() != 3) {
+                throw new BusinessException("只有已通过的报销单才能打款");
+            }
+            SysUser current = currentUser();
+            LocalDateTime now = LocalDateTime.now();
 
-        // 乐观锁：仅当状态仍为「已通过」时更新，防止并发重复打款
-        int rows = reimbursementMapper.payIfApproved(id, now, current.getId(), current.getRealName(), now);
-        if (rows == 0) {
-            throw new BusinessException("只有已通过的报销单才能打款");
-        }
+            // 乐观锁：仅当状态仍为「已通过」时更新，防止并发重复打款
+            int rows = reimbursementMapper.payIfApproved(id, now, current.getId(), current.getRealName(), now);
+            if (rows == 0) {
+                throw new BusinessException("只有已通过的报销单才能打款");
+            }
 
-        reimbursement.setStatus(5);
-        reimbursement.setPayTime(now);
-        reimbursement.setPayUserId(current.getId());
-        reimbursement.setPayUserName(current.getRealName());
-        reimbursement.setUpdateTime(now);
+            reimbursement.setStatus(5);
+            reimbursement.setPayTime(now);
+            reimbursement.setPayUserId(current.getId());
+            reimbursement.setPayUserName(current.getRealName());
+            reimbursement.setUpdateTime(now);
 
-        noticeService.send(reimbursement.getUserId(), "报销已打款",
-                "报销单 " + reimbursement.getReimburseNo() + " 已完成打款，金额 " + reimbursement.getTotalAmount() + " 元",
-                "/reimbursement/detail/" + id);
+            noticeService.send(reimbursement.getUserId(), "报销已打款",
+                    "报销单 " + reimbursement.getReimburseNo() + " 已完成打款，金额 " + reimbursement.getTotalAmount() + " 元",
+                    "/reimbursement/detail/" + id);
 
-        log.info("报销单打款成功, id: {}", id);
-        return reimbursement;
+            log.info("报销单打款成功, id: {}", id);
+            return reimbursement;
+        });
     }
 
     @Override

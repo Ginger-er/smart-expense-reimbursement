@@ -10,6 +10,7 @@ import com.smartexpense.mapper.ApprovalRecordMapper;
 import com.smartexpense.mapper.InvoiceMapper;
 import com.smartexpense.mapper.ReimbursementMapper;
 import com.smartexpense.mapper.SysUserMapper;
+import com.smartexpense.redis.RedisLock;
 import com.smartexpense.service.NoticeService;
 import com.smartexpense.vo.ReimbursementDetailVO;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,14 +25,17 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +52,8 @@ class ReimbursementServiceImplTest {
     private ApprovalRecordMapper approvalRecordMapper;
     @Mock
     private NoticeService noticeService;
+    @Mock
+    private RedisLock redisLock;
 
     @InjectMocks
     private ReimbursementServiceImpl service;
@@ -55,6 +61,10 @@ class ReimbursementServiceImplTest {
     @BeforeEach
     void injectBaseMapper() {
         ReflectionTestUtils.setField(service, "baseMapper", reimbursementMapper);
+        // 默认透传：锁内 action 直接执行、加锁成功——让业务断言聚焦在业务逻辑上
+        lenient().when(redisLock.executeWithLock(anyString(), anyLong(), any()))
+                .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(2)).get());
+        lenient().when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(true);
     }
 
     private SysUser user(long id, int role, long deptId) {
@@ -242,6 +252,57 @@ class ReimbursementServiceImplTest {
             when(reimbursementMapper.selectById(1L)).thenReturn(reimbursement(1L, 2L, 1, "1000"));
 
             assertThrows(BusinessException.class, () -> service.approve(1L, 1, "同意"));
+        }
+    }
+
+    @Test
+    void submit_duplicateConcurrent_shouldThrow() {
+        when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(false); // 已有请求在提交
+
+        assertThrows(BusinessException.class, () -> service.submit(1L));
+    }
+
+    @Test
+    void submit_success_shouldReleaseIdempotencyKey() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);
+            when(userMapper.selectById(2L)).thenReturn(user(2L, 1, 2L));
+            when(reimbursementMapper.selectById(1L)).thenReturn(reimbursement(1L, 2L, 0, null));
+            Invoice i1 = new Invoice();
+            i1.setAmount(new BigDecimal("100"));
+            when(invoiceMapper.selectList(any())).thenReturn(List.of(i1));
+
+            service.submit(1L);
+
+            verify(redisLock).unlock(eq("idem:submit:1"), anyString());
+        }
+    }
+
+    @Test
+    void approve_shouldExecuteWithinLock() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(3L);
+            when(userMapper.selectById(3L)).thenReturn(user(3L, 2, 2L));
+            when(reimbursementMapper.selectById(1L)).thenReturn(reimbursement(1L, 2L, 1, "1000"));
+            when(userMapper.selectById(2L)).thenReturn(user(2L, 1, 2L));
+
+            service.approve(1L, 1, "同意");
+
+            verify(redisLock).executeWithLock(eq("lock:reimb:approve:1"), eq(10L), any());
+        }
+    }
+
+    @Test
+    void pay_shouldExecuteWithinLock() {
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(1L);
+            when(userMapper.selectById(1L)).thenReturn(user(1L, 4, 1L));
+            when(reimbursementMapper.selectById(1L)).thenReturn(reimbursement(1L, 2L, 3, "1000"));
+            when(reimbursementMapper.payIfApproved(any(), any(), any(), any(), any())).thenReturn(1);
+
+            service.pay(1L);
+
+            verify(redisLock).executeWithLock(eq("lock:reimb:pay:1"), eq(10L), any());
         }
     }
 
