@@ -38,6 +38,38 @@
 
 ---
 
+## 亮点设计
+
+### 并发防护（三层递进）
+
+| 场景 | 方案 | 兜底层 |
+|------|------|--------|
+| 提交防重复 | Redis SETNX 幂等标记（10s TTL，finally 释放） | 状态机校验（仅草稿/已驳回可提交） |
+| 审批防双写 | Redis 分布式锁串行化（SETNX+EX、UUID 持有者、Lua 原子释放） | 状态校验（仅 1/2 可审批） |
+| 打款防重 | Redis 分布式锁 | **数据库乐观更新** `WHERE status=3`，0 行即拦截 |
+
+- **Redis 故障自动降级**：锁获取失败按成功处理（fail-open），由状态机/乐观锁兜底，业务永不因 Redis 中断
+- **权限闭环**：任何角色都不能审批自己提交的单据（防自审自批）；发票详情、报销详情均有数据范围校验（员工看自己 / 领导看本部门 / 财务管理员看全部）
+- 实现见 [RedisLock.java](server/src/main/java/com/smartexpense/redis/RedisLock.java) 与 [ReimbursementServiceImpl.java](server/src/main/java/com/smartexpense/service/impl/ReimbursementServiceImpl.java)
+
+### 统计缓存
+
+工作台/报表的聚合查询（十几条 GROUP BY/JOIN SQL）结果缓存到 Redis，5 分钟 TTL：
+
+- key 含角色/用户/部门/日期范围（`stats:report:3:all:all:2026-08-01:2026-08-31`），不同数据范围互不串数据
+- 缓存读/写/反序列化异常全部降级直查数据库，业务不中断
+- 序列化复用 Spring ObjectMapper（jsr310），与接口 JSON 格式一致
+- 实现见 [StatsCache.java](server/src/main/java/com/smartexpense/redis/StatsCache.java)
+
+### 工程细节
+
+- **异步 OCR**：上传立即返回，专用线程池后台识别（CallerRunsPolicy 拒绝策略），前端轮询结果；增值税发票识别失败自动降级智能票据识别
+- **导出完整性**：分页插件全局 maxLimit=100 防大查询，导出/审批中心循环分页取全量，杜绝静默截断
+- **驳回可重提**：已驳回单据支持重新提交（报销直接重提、出差可修改后重提），历史审批记录保留
+- **禁用即时生效**：禁用用户立即踢下线 + 角色查询状态校验双重保障
+
+---
+
 ## 系统架构
 
 ```mermaid
@@ -58,7 +90,7 @@ graph LR
 | 后端 | Spring Boot 3.2.5 + MyBatis-Plus 3.5.5 |
 | 认证授权 | Sa-Token 1.37（JWT + Redis）|
 | 数据库 | MySQL 8.0 |
-| 缓存 | Redis 7 |
+| 缓存/锁 | Redis 7（会话 + 分布式锁 + 统计缓存）|
 | OCR | 百度智能云 OCR |
 | 接口文档 | SpringDoc OpenAPI（Swagger UI）|
 | 工具 | Hutool、Lombok、EasyExcel |
