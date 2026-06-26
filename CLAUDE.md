@@ -22,7 +22,7 @@ scripts\start.bat
 # 仅启动基础设施
 cd deploy && docker-compose up -d mysql redis
 
-# 后端构建 / 运行(端口 8080,Swagger: http://localhost:8080/doc.html)
+# 后端构建 / 运行(端口 8080,Swagger: http://localhost:8080/swagger-ui/index.html)
 cd server && mvn clean package
 cd server && mvn spring-boot:run
 

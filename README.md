@@ -146,7 +146,7 @@ cd server
 mvn spring-boot:run
 ```
 
-接口文档（Swagger）：http://localhost:8080/doc.html
+接口文档（Swagger）：http://localhost:8080/swagger-ui/index.html
 
 ### 5. 启动前端
 
