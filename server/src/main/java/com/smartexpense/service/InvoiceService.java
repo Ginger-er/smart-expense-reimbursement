@@ -28,6 +28,9 @@ public interface InvoiceService {
     /** 查询发票详情（带数据范围权限校验：员工看自己、领导看本部门、财务/管理员看全部） */
     Invoice detail(Long id);
 
+    /** 标记 OCR 识别失败（异步任务兜底，防止发票永远停留在"识别中"） */
+    void markOcrFailed(Long invoiceId);
+
     /** 删除发票 */
     void delete(Long id);
 }

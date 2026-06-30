@@ -147,8 +147,19 @@ let nextKey = 1
 
 const loadReimburseOptions = async () => {
   try {
-    const res: any = await getReimbursementList({ pageNum: 1, pageSize: 500, status: 0 })
-    reimburseOptions.value = (res.data || []).map((r: any) => ({ id: r.id, label: `${r.applicantName} · ${r.remark || '报销单'} · ¥${formatYuan(r.amount || 0)} · ${r.orderNo}` }))
+    // 后端分页上限 100 条/页，循环翻页取全部草稿，避免下拉漏单
+    const all: any[] = []
+    let pageNum = 1
+    while (true) {
+      const res: any = await getReimbursementList({ pageNum, pageSize: 100, status: 0 })
+      const list = (res.data || []) as any[]
+      all.push(...list)
+      if (list.length < 100) {
+        break
+      }
+      pageNum++
+    }
+    reimburseOptions.value = all.map((r: any) => ({ id: r.id, label: `${r.applicantName} · ${r.remark || '报销单'} · ¥${formatYuan(r.amount || 0)} · ${r.orderNo}` }))
   } catch {
     /* 忽略 */
   }
@@ -194,8 +205,11 @@ const removeItem = (item: UploadedItem) => {
   stopPoll(item)
 }
 
-// 轮询 OCR 识别结果，识别完成（非 0）后停止
+// 轮询 OCR 识别结果：最多 15 次（约 30 秒），期间瞬时错误不中断轮询；
+// 超时后标记为失败并展示「手动填写」入口，避免永远卡在"识别中"
+const MAX_POLL_ATTEMPTS = 15
 const pollTimers = new Map<number, number>()
+const pollAttempts = new Map<number, number>()
 
 const stopPoll = (item: UploadedItem) => {
   const timer = pollTimers.get(item.key)
@@ -203,10 +217,20 @@ const stopPoll = (item: UploadedItem) => {
     clearInterval(timer)
     pollTimers.delete(item.key)
   }
+  pollAttempts.delete(item.key)
 }
 
 const pollOcrStatus = (item: UploadedItem) => {
+  pollAttempts.set(item.key, 0)
   const timer = window.setInterval(async () => {
+    const attempts = pollAttempts.get(item.key) ?? 0
+    if (attempts >= MAX_POLL_ATTEMPTS) {
+      // 超时兜底：标记为识别失败，用户可以手动填写
+      item.ocrStatus = 2
+      stopPoll(item)
+      return
+    }
+    pollAttempts.set(item.key, attempts + 1)
     try {
       const res: any = await getInvoiceDetail(item.id!)
       const inv = res.data
@@ -216,7 +240,7 @@ const pollOcrStatus = (item: UploadedItem) => {
       item.ocrStatus = inv.ocrStatus
       if (inv.ocrStatus !== 0) stopPoll(item)
     } catch {
-      stopPoll(item)
+      // 网络抖动/接口瞬时异常不中断轮询，下一轮重试
     }
   }, 2000)
   pollTimers.set(item.key, timer)

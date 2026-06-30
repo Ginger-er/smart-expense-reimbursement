@@ -168,6 +168,28 @@ class InvoiceServiceImplTest {
     }
 
     @Test
+    void markOcrFailed_pendingInvoice_shouldSetFailed() {
+        Invoice pending = invoice(1L, 2L, null);
+        pending.setOcrStatus(0);
+        when(invoiceMapper.selectById(1L)).thenReturn(pending);
+
+        service.markOcrFailed(1L);
+
+        assertEquals(2, pending.getOcrStatus());
+    }
+
+    @Test
+    void markOcrFailed_alreadyFinished_shouldNotOverride() {
+        Invoice done = invoice(1L, 2L, null);
+        done.setOcrStatus(1); // 已识别成功
+        when(invoiceMapper.selectById(1L)).thenReturn(done);
+
+        service.markOcrFailed(1L);
+
+        assertEquals(1, done.getOcrStatus());
+    }
+
+    @Test
     void detail_ownInvoice_shouldReturn() {
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);

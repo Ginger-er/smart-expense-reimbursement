@@ -262,6 +262,17 @@ public class InvoiceServiceImpl extends ServiceImpl<InvoiceMapper, Invoice> impl
     }
 
     @Override
+    public void markOcrFailed(Long invoiceId) {
+        Invoice invoice = invoiceMapper.selectById(invoiceId);
+        // 仅当发票仍处于"识别中"时落为失败，避免覆盖后续人工操作
+        if (invoice != null && invoice.getOcrStatus() != null && invoice.getOcrStatus() == 0) {
+            invoice.setOcrStatus(2);
+            updateById(invoice);
+            log.info("OCR识别失败状态已标记, id: {}", invoiceId);
+        }
+    }
+
+    @Override
     public Invoice detail(Long id) {
         Invoice invoice = getById(id);
         SysUser current = userMapper.selectById(StpUtil.getLoginIdAsLong());
