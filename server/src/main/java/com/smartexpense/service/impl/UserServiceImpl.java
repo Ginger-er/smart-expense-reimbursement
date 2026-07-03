@@ -46,6 +46,7 @@ public class UserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impleme
         save(user);
 
         log.info("用户创建成功, id: {}, username: {}", user.getId(), user.getUsername());
+        user.setPassword(null); // 密码哈希不返回给前端
         return user;
     }
 
@@ -78,6 +79,7 @@ public class UserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impleme
         save(user);
 
         log.info("用户自助注册成功, id: {}, username: {}", user.getId(), user.getUsername());
+        user.setPassword(null); // 密码哈希不返回给前端
         return user;
     }
 
