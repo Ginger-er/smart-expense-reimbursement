@@ -82,7 +82,7 @@
       <!-- 底部按钮 -->
       <div class="upload-footer">
         <el-button @click="$router.back()">返回</el-button>
-        <el-button type="primary" @click="$router.push('/invoice')">完成</el-button>
+        <el-button type="primary" @click="handleDone">完成</el-button>
       </div>
     </div>
 
@@ -120,7 +120,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadFile } from 'element-plus'
 import { formatYuan } from '@/utils/format'
 import { invoiceType } from '@/utils/status'
@@ -296,6 +297,24 @@ const confirmManual = async () => {
     /* 错误已由拦截器提示 */
   } finally {
     manualLoading.value = false
+  }
+}
+
+const router = useRouter()
+
+// 点击完成：若有发票还在识别中，先提醒用户——跳转后可在「发票管理」页继续查看结果
+const handleDone = () => {
+  const recognizing = uploadedItems.value.filter((i) => i.ocrStatus === 0).length
+  if (recognizing > 0) {
+    ElMessageBox.confirm(
+      `还有 ${recognizing} 张发票正在识别中。跳转后可在「发票管理」页继续查看识别结果，该页会自动刷新识别状态。`,
+      '还有发票在识别中',
+      { type: 'warning', confirmButtonText: '仍然离开', cancelButtonText: '留下继续等' }
+    )
+      .then(() => router.push('/invoice'))
+      .catch(() => {})
+  } else {
+    router.push('/invoice')
   }
 }
 
