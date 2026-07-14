@@ -158,6 +158,14 @@ const fetchData = async () => {
   try {
     const res: any = await getInvoiceList({})
     allItems.value = res.data || []
+    // 详情弹窗展示的是列表对象的引用，列表刷新后按 id 同步最新数据，
+    // 否则弹窗里的"识别中"状态永远不变
+    if (currentInvoice.value) {
+      const fresh = allItems.value.find((i) => i.id === currentInvoice.value!.id)
+      if (fresh) {
+        currentInvoice.value = fresh
+      }
+    }
   } catch {
     /* 错误已由拦截器提示 */
   } finally {

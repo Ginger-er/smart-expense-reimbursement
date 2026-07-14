@@ -66,8 +66,12 @@
               <el-icon :size="16"><CircleCheckFilled /></el-icon>
               人工修正
             </span>
+            <div v-if="item.ocrStatus === 0" class="item-poll-debug">
+              发票id={{ item.id ?? '?' }} · 已轮询{{ item.pollCount ?? 0 }}次 · {{ item.lastPollResult || '等待第一次轮询…' }}
+            </div>
           </div>
           <div class="item-actions">
+            <el-button v-if="item.ocrStatus === 0" size="small" @click="refreshItem(item)">立即刷新</el-button>
             <el-button v-if="item.ocrStatus === 2" size="small" @click="manualFill(item)">手动填写</el-button>
             <el-button size="small" text type="danger" @click="removeItem(item)">删除</el-button>
           </div>
@@ -138,6 +142,8 @@ interface UploadedItem {
   type?: number
   amount?: number
   ocrStatus: number
+  pollCount?: number
+  lastPollResult?: string
 }
 
 const uploading = ref(false)
@@ -221,6 +227,24 @@ const stopPoll = (item: UploadedItem) => {
   pollAttempts.delete(item.key)
 }
 
+/** 拉取一次发票详情并更新条目（轮询与「立即刷新」按钮共用） */
+const refreshItemOnce = async (item: UploadedItem) => {
+  try {
+    const res: any = await getInvoiceDetail(item.id!)
+    const inv = res.data
+    item.invoiceNo = inv.invoiceNo
+    item.type = inv.type
+    item.amount = inv.amount
+    item.ocrStatus = inv.ocrStatus
+    item.lastPollResult = `上次请求 ${new Date().toLocaleTimeString()} → 服务端状态=${inv.ocrStatus}`
+    if (inv.ocrStatus !== 0) stopPoll(item)
+    return inv
+  } catch (e: any) {
+    item.lastPollResult = `上次请求 ${new Date().toLocaleTimeString()} → 失败:${e?.message || '未知错误'}`
+    return null
+  }
+}
+
 const pollOcrStatus = (item: UploadedItem) => {
   pollAttempts.set(item.key, 0)
   const timer = window.setInterval(async () => {
@@ -228,23 +252,20 @@ const pollOcrStatus = (item: UploadedItem) => {
     if (attempts >= MAX_POLL_ATTEMPTS) {
       // 超时兜底：标记为识别失败，用户可以手动填写
       item.ocrStatus = 2
+      item.lastPollResult = `轮询 ${MAX_POLL_ATTEMPTS} 次仍未完成，已标记失败`
       stopPoll(item)
       return
     }
     pollAttempts.set(item.key, attempts + 1)
-    try {
-      const res: any = await getInvoiceDetail(item.id!)
-      const inv = res.data
-      item.invoiceNo = inv.invoiceNo
-      item.type = inv.type
-      item.amount = inv.amount
-      item.ocrStatus = inv.ocrStatus
-      if (inv.ocrStatus !== 0) stopPoll(item)
-    } catch {
-      // 网络抖动/接口瞬时异常不中断轮询，下一轮重试
-    }
+    item.pollCount = attempts + 1
+    await refreshItemOnce(item)
   }, 2000)
   pollTimers.set(item.key, timer)
+}
+
+/** 「立即刷新」按钮：手动拉取一次最新状态 */
+const refreshItem = async (item: UploadedItem) => {
+  await refreshItemOnce(item)
 }
 
 // 手动填写
@@ -460,6 +481,12 @@ onBeforeUnmount(() => {
   .status-success { color: $color-success; }
   .status-failed { color: $color-danger; }
   .status-abnormal { color: $color-warning; }
+
+  .item-poll-debug {
+    margin-top: 4px;
+    font-size: 12px;
+    color: $text-secondary;
+  }
 }
 
 .item-actions {
