@@ -66,9 +66,6 @@
               <el-icon :size="16"><CircleCheckFilled /></el-icon>
               人工修正
             </span>
-            <div v-if="item.ocrStatus === 0" class="item-poll-debug">
-              发票id={{ item.id ?? '?' }} · 已轮询{{ item.pollCount ?? 0 }}次 · {{ item.lastPollResult || '等待第一次轮询…' }}
-            </div>
           </div>
           <div class="item-actions">
             <el-button v-if="item.ocrStatus === 0" size="small" @click="refreshItem(item)">立即刷新</el-button>
@@ -142,8 +139,6 @@ interface UploadedItem {
   type?: number
   amount?: number
   ocrStatus: number
-  pollCount?: number
-  lastPollResult?: string
 }
 
 const uploading = ref(false)
@@ -236,11 +231,9 @@ const refreshItemOnce = async (item: UploadedItem) => {
     item.type = inv.type
     item.amount = inv.amount
     item.ocrStatus = inv.ocrStatus
-    item.lastPollResult = `上次请求 ${new Date().toLocaleTimeString()} → 服务端状态=${inv.ocrStatus}`
     if (inv.ocrStatus !== 0) stopPoll(item)
     return inv
-  } catch (e: any) {
-    item.lastPollResult = `上次请求 ${new Date().toLocaleTimeString()} → 失败:${e?.message || '未知错误'}`
+  } catch {
     return null
   }
 }
@@ -252,12 +245,10 @@ const pollOcrStatus = (item: UploadedItem) => {
     if (attempts >= MAX_POLL_ATTEMPTS) {
       // 超时兜底：标记为识别失败，用户可以手动填写
       item.ocrStatus = 2
-      item.lastPollResult = `轮询 ${MAX_POLL_ATTEMPTS} 次仍未完成，已标记失败`
       stopPoll(item)
       return
     }
     pollAttempts.set(item.key, attempts + 1)
-    item.pollCount = attempts + 1
     await refreshItemOnce(item)
   }, 2000)
   pollTimers.set(item.key, timer)
@@ -481,12 +472,6 @@ onBeforeUnmount(() => {
   .status-success { color: $color-success; }
   .status-failed { color: $color-danger; }
   .status-abnormal { color: $color-warning; }
-
-  .item-poll-debug {
-    margin-top: 4px;
-    font-size: 12px;
-    color: $text-secondary;
-  }
 }
 
 .item-actions {
