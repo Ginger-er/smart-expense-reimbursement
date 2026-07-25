@@ -15,7 +15,7 @@ public class SmartExpenseApplication {
         System.out.println("========================================");
         System.out.println("  智能差旅报销系统启动成功!");
         System.out.println("  Smart Expense Reimbursement System");
-        System.out.println("  API Docs: http://localhost:8080/doc.html");
+        System.out.println("  API Docs: http://localhost:8080/swagger-ui/index.html");
         System.out.println("========================================");
     }
 }

@@ -73,7 +73,8 @@ sa-token:
   is-read-cookie: false
   is-read-body: false
   is-read-head: true
-  jwt-secret-key: smartexpensejwtsecretkey2024abcdef
+  # JWT 密钥走环境变量注入，默认值仅用于本地开发，生产必须覆盖
+  jwt-secret-key: ${SMART_EXPENSE_JWT_SECRET:smartexpensejwtsecretkey2024abcdef}
 
 # 百度OCR
 baidu:

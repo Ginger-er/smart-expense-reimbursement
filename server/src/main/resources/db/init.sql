@@ -176,6 +176,26 @@ CREATE TABLE sys_notice (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息通知表';
 
 -- =============================================
+-- 费用异常预警记录表（策略模式规则引擎扫描生成）
+-- =============================================
+CREATE TABLE IF NOT EXISTS abnormal_record (
+    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+    rule_code        VARCHAR(16)  NOT NULL COMMENT '规则编码(A001重复发票 A002日期异常 A003金额突增)',
+    rule_name        VARCHAR(64)  NOT NULL COMMENT '规则名称',
+    biz_key          VARCHAR(128) NOT NULL COMMENT '业务去重键(同规则同业务只记录一次)',
+    reimbursement_id BIGINT       DEFAULT NULL COMMENT '关联报销单ID',
+    invoice_id       BIGINT       DEFAULT NULL COMMENT '关联发票ID',
+    user_id          BIGINT       DEFAULT NULL COMMENT '相关用户ID',
+    message          VARCHAR(255) NOT NULL COMMENT '预警详情',
+    handled          TINYINT      NOT NULL DEFAULT 0 COMMENT '是否已处理(0未处理 1已处理)',
+    handle_time      DATETIME     DEFAULT NULL COMMENT '处理时间',
+    create_time      DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_rule_biz (rule_code, biz_key),
+    KEY idx_handled (handled),
+    KEY idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='费用异常预警记录';
+
+-- =============================================
 -- 初始数据（部门）
 -- 用户数据由 DataInitializer 在应用启动时自动创建
 -- =============================================
