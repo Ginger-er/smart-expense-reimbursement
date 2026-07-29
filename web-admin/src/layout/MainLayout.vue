@@ -99,6 +99,11 @@
             <span>数据报表</span>
           </el-menu-item>
 
+          <el-menu-item v-if="userRole >= 3" index="/abnormal">
+            <el-icon><Warning /></el-icon>
+            <span>异常预警</span>
+          </el-menu-item>
+
           <el-sub-menu v-if="userRole === 4" index="sys-group">
             <template #title>
               <el-icon><Setting /></el-icon>
@@ -269,7 +274,7 @@ import { getNoticeList, getUnreadCount, markRead, markAllRead } from '@/api/noti
 import { formatDate } from '@/utils/format'
 import {
   HomeFilled, Checked, Document, Promotion, Tickets,
-  DataAnalysis, Setting, Fold, Expand, Message, ArrowDown, User, SwitchButton
+  DataAnalysis, Setting, Fold, Expand, Message, ArrowDown, User, SwitchButton, Warning
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

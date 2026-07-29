@@ -2,12 +2,14 @@ package com.smartexpense.config;
 
 import cn.dev33.satoken.secure.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.smartexpense.entity.AbnormalRecord;
 import com.smartexpense.entity.ApprovalRecord;
 import com.smartexpense.entity.Invoice;
 import com.smartexpense.entity.Reimbursement;
 import com.smartexpense.entity.SysDept;
 import com.smartexpense.entity.SysUser;
 import com.smartexpense.entity.Trip;
+import com.smartexpense.mapper.AbnormalRecordMapper;
 import com.smartexpense.mapper.ApprovalRecordMapper;
 import com.smartexpense.mapper.InvoiceMapper;
 import com.smartexpense.mapper.ReimbursementMapper;
@@ -34,12 +36,14 @@ public class DataInitializer implements CommandLineRunner {
     private final TripMapper tripMapper;
     private final InvoiceMapper invoiceMapper;
     private final ApprovalRecordMapper approvalRecordMapper;
+    private final AbnormalRecordMapper abnormalRecordMapper;
 
     @Override
     public void run(String... args) {
         initDepts();
         initUsers();
         initDemoData();
+        initDemoAbnormalRecords();
     }
 
     private void initDepts() {
@@ -67,6 +71,37 @@ public class DataInitializer implements CommandLineRunner {
     private void initDemoData() {
         initDemoReimbursements();
         initDemoTrips();
+    }
+
+    /** 演示预警记录 3 条（对应 3 条规则），预警页开箱即有内容可看 */
+    private void initDemoAbnormalRecords() {
+        if (abnormalRecordMapper.selectCount(new LambdaQueryWrapper<>()) > 0) return;
+
+        abnormalRecordMapper.insert(buildAbnormalRecord(
+                "A001", "重复发票", "31002408881241|2", null, 2L, 2L,
+                "发票号 31002408881241 同时出现在多个报销单中，疑似重复报销"));
+        abnormalRecordMapper.insert(buildAbnormalRecord(
+                "A002", "发票日期异常", "inv-1", null, 1L, 2L,
+                "发票开票日期不在关联出差单的行程范围内，请核对行程与票据时间"));
+        abnormalRecordMapper.insert(buildAbnormalRecord(
+                "A003", "金额突增", "2|2026-08", 1L, null, 2L,
+                "本月报销总额较上月增长超过 1.5 倍阈值，请关注报销合理性"));
+        log.info("演示预警记录已创建");
+    }
+
+    private AbnormalRecord buildAbnormalRecord(String code, String name, String bizKey,
+                                               Long reimbursementId, Long invoiceId, Long userId, String message) {
+        AbnormalRecord r = new AbnormalRecord();
+        r.setRuleCode(code);
+        r.setRuleName(name);
+        r.setBizKey(bizKey);
+        r.setReimbursementId(reimbursementId);
+        r.setInvoiceId(invoiceId);
+        r.setUserId(userId);
+        r.setMessage(message);
+        r.setHandled(0);
+        r.setCreateTime(LocalDateTime.now());
+        return r;
     }
 
     private void initDemoReimbursements() {

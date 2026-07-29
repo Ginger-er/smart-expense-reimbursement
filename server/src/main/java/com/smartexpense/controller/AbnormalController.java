@@ -1,6 +1,7 @@
 package com.smartexpense.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import cn.dev33.satoken.annotation.SaMode;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.smartexpense.annotation.OperLog;
@@ -31,9 +32,9 @@ public class AbnormalController {
     private final AbnormalScanService scanService;
 
     @Operation(summary = "预警列表（分页，可按处理状态筛选）")
-    @SaCheckRole({"finance", "admin"})
+    @SaCheckRole(value = {"finance", "admin"}, mode = SaMode.OR)
     @GetMapping("/list")
-    public Result<PageResult<AbnormalRecord>> list(
+    public PageResult<AbnormalRecord> list(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) Integer handled) {
@@ -43,12 +44,12 @@ public class AbnormalController {
         }
         wrapper.orderByDesc(AbnormalRecord::getCreateTime);
         Page<AbnormalRecord> page = recordMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
-        return Result.success(PageResult.success(page));
+        return PageResult.success(page);
     }
 
     @Operation(summary = "标记预警已处理")
     @OperLog("处理预警")
-    @SaCheckRole({"finance", "admin"})
+    @SaCheckRole(value = {"finance", "admin"}, mode = SaMode.OR)
     @PostMapping("/handle/{id}")
     public Result<Void> handle(@PathVariable Long id) {
         AbnormalRecord record = recordMapper.selectById(id);

@@ -25,6 +25,7 @@
 | **出差申请** | 差旅申请的提交、审批流转 |
 | **操作日志** | AOP 注解式记录关键操作（操作人 / IP / 耗时 / 结果），密码字段脱敏 |
 | **消息通知** | 审批结果 / 打款进度自动推送站内通知，角标提醒未读数 |
+| **异常预警** | 策略模式规则引擎（重复发票 / 日期异常 / 金额突增）每日定时扫描，财务/管理员处理闭环 |
 | **Excel 导出** | 报销单按当前筛选条件一键导出 Excel（EasyExcel） |
 
 ### 用户角色与数据范围
@@ -60,6 +61,21 @@
 - 缓存读/写/反序列化异常全部降级直查数据库，业务不中断
 - 序列化复用 Spring ObjectMapper（jsr310），与接口 JSON 格式一致
 - 实现见 [StatsCache.java](server/src/main/java/com/smartexpense/redis/StatsCache.java)
+
+### 异常预警（策略模式规则引擎）
+
+每天 9:00 定时扫描昨日数据（也可管理员手动触发），三条规则命中即生成预警记录，财务/管理员标记处理闭环：
+
+| 规则 | 说明 |
+|------|------|
+| A001 重复发票 | 同一发票号出现在多个不同报销单中，疑似重复报销 |
+| A002 发票日期异常 | 发票开票日期不在关联出差单的行程范围内 |
+| A003 金额突增 | 本月已通过报销总额超过上月 150% |
+
+- **策略模式**：每条规则一个实现类（[service/abnormal](server/src/main/java/com/smartexpense/service/abnormal/)），新增规则只需加类，符合开闭原则
+- **单条规则失败不影响整体**：规则引擎逐个执行、异常隔离
+- **去重防堆积**：同规则同业务（biz_key）只记录一次
+- 实现见 [AbnormalRuleEngine.java](server/src/main/java/com/smartexpense/service/abnormal/AbnormalRuleEngine.java) 与 [AbnormalScanService.java](server/src/main/java/com/smartexpense/service/abnormal/AbnormalScanService.java)
 
 ### 工程细节
 

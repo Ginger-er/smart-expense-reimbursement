@@ -12,6 +12,7 @@
 - 前端:Vue 3.4 + TypeScript + Element Plus + Vite + Pinia
 - 报销审批为**手写状态机**(状态码 0草稿/1待审批/2审批中/3已通过/4已驳回/5已打款,≥5000 元走两级审批),未使用工作流引擎
 - Redis 用途:Sa-Token 会话存储、分布式锁(审批/打款防并发)、幂等提交标记、统计缓存(5 分钟 TTL)
+- 异常预警为**策略模式规则引擎**(service/abnormal 包):AbnormalRule 接口 + 规则实现类,@Scheduled 每天 9 点扫昨日数据,biz_key 去重;新增规则=新增实现类
 
 ## 常用命令
 

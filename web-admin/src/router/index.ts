@@ -96,6 +96,12 @@ const routes: RouteRecordRaw[] = [
         name: 'SystemOperLog',
         component: () => import('@/views/system/OperLog.vue'),
         meta: { title: '操作日志' }
+      },
+      {
+        path: 'abnormal',
+        name: 'Abnormal',
+        component: () => import('@/views/abnormal/List.vue'),
+        meta: { title: '异常预警' }
       }
     ]
   }
@@ -121,10 +127,11 @@ router.beforeEach((to, _from, next) => {
 
   const role = Number(localStorage.getItem('role') || 1)
 
-  // 角色权限：审批中心需领导/财务/管理员，系统管理需管理员
+  // 角色权限：审批中心需领导/财务/管理员，系统管理需管理员，异常预警需财务/管理员
   const guards: { prefix: string; roles: number[] }[] = [
     { prefix: '/approval', roles: [2, 3, 4] },
-    { prefix: '/system', roles: [4] }
+    { prefix: '/system', roles: [4] },
+    { prefix: '/abnormal', roles: [3, 4] }
   ]
   for (const g of guards) {
     if (to.path.startsWith(g.prefix) && !g.roles.includes(role)) {
