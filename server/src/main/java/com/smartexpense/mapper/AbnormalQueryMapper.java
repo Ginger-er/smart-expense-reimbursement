@@ -14,12 +14,14 @@ import java.util.Map;
 @Mapper
 public interface AbnormalQueryMapper {
 
-    /** A001 重复发票：同一发票号出现在多个不同报销单中 */
+    /** A001 重复发票：同一发票号出现在多个不同报销单中。
+     *  窗口只用于限定"至少有一张在窗口内创建"，这样隔天重复上传的发票也能被检测到 */
     @Select("SELECT i.invoice_no AS invoiceNo, i.user_id AS userId, " +
             "GROUP_CONCAT(DISTINCT i.reimbursement_id ORDER BY i.reimbursement_id) AS reimbursementIds " +
             "FROM invoice i " +
             "WHERE i.invoice_no IS NOT NULL AND i.invoice_no != '' AND i.reimbursement_id IS NOT NULL " +
-            "AND i.create_time >= #{start} AND i.create_time < #{end} " +
+            "AND EXISTS (SELECT 1 FROM invoice w WHERE w.invoice_no = i.invoice_no " +
+            "  AND w.create_time >= #{start} AND w.create_time < #{end}) " +
             "GROUP BY i.invoice_no, i.user_id " +
             "HAVING COUNT(DISTINCT i.reimbursement_id) > 1")
     List<Map<String, Object>> duplicateInvoiceNos(@Param("start") LocalDateTime start,

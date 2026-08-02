@@ -120,4 +120,33 @@ class RedisLockTest {
 
         assertTrue(ran.get());
     }
+
+    @Test
+    void executeWithLockAfterCommit_lockAcquired_shouldRunActionAndUnlock() {
+        when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+        AtomicBoolean ran = new AtomicBoolean(false);
+
+        String result = redisLock.executeWithLockAfterCommit("k", 10, () -> {
+            ran.set(true);
+            return "ok";
+        });
+
+        assertTrue(ran.get());
+        assertTrue("ok".equals(result));
+        // 无事务上下文（单元测试）时立即释放
+        verify(redisTemplate).execute(any(DefaultRedisScript.class), anyList(), anyString());
+    }
+
+    @Test
+    void executeWithLockAfterCommit_lockBusy_shouldThrowBusinessException() {
+        when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(false);
+        AtomicBoolean ran = new AtomicBoolean(false);
+
+        assertThrows(BusinessException.class,
+                () -> redisLock.executeWithLockAfterCommit("k", 10, () -> {
+                    ran.set(true);
+                    return "ok";
+                }));
+        assertFalse(ran.get());
+    }
 }

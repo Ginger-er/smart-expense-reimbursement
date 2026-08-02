@@ -204,8 +204,10 @@ smart-expense-reimbursement/
 │   │   ├── entity/                  # 数据实体
 │   │   ├── mapper/                  # MyBatis Mapper
 │   │   ├── service/                 # 业务层
+│   │   ├── service/abnormal/        # 异常预警（策略模式规则引擎 + 扫描服务）
 │   │   ├── controller/              # REST 接口
 │   │   ├── vo/                      # 视图对象
+│   │   ├── redis/                   # RedisLock / StatsCache 组件
 │   │   ├── config/                  # 配置类（Sa-Token、OCR、数据初始化等）
 │   │   ├── common/                  # 通用类（Result、PageResult）
 │   │   └── exception/               # 全局异常处理
@@ -289,6 +291,13 @@ smart-expense-reimbursement/
 | `/notice/read/{id}` | POST | 标记单条已读 |
 | `/notice/read-all` | POST | 全部标记已读 |
 
+### 异常预警
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/abnormal/list` | GET | 预警列表（财务/管理员，分页 + 处理状态筛选） |
+| `/abnormal/handle/{id}` | POST | 标记预警已处理（财务/管理员） |
+| `/abnormal/scan` | POST | 手动触发扫描昨日数据（管理员） |
+
 ---
 
 ## 状态机
@@ -343,6 +352,7 @@ stateDiagram-v2
 | invoice | 发票表（amount、type、ocr_json、ocr_status） |
 | reimbursement | 报销单表（total_amount、status、remark、pay_time） |
 | approval_record | 审批记录表（action、comment、node_name） |
+| abnormal_record | 异常预警记录表（rule_code、biz_key 唯一去重、handled） |
 | sys_oper_log | 操作日志表（操作人、请求、结果、耗时） |
 | sys_notice | 消息通知表（接收人、标题、内容、已读状态） |
 
@@ -355,6 +365,7 @@ stateDiagram-v2
 | `BAIDU_OCR_APP_ID` | 百度 OCR 应用 ID | 空 |
 | `BAIDU_OCR_API_KEY` | 百度 OCR API Key | 空 |
 | `BAIDU_OCR_SECRET_KEY` | 百度 OCR Secret Key | 空 |
+| `SMART_EXPENSE_JWT_SECRET` | JWT 签名密钥（生产必须覆盖） | 本地开发默认值 |
 
 > 密钥仅通过环境变量或 `application-dev.yml`（已被 gitignore）注入，严禁提交到公开仓库。
 

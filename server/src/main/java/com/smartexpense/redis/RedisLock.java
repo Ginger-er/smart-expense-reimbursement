@@ -6,6 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.util.List;
@@ -77,5 +79,34 @@ public class RedisLock {
             action.run();
             return null;
         });
+    }
+
+    /**
+     * 锁内执行，但锁在【事务结束后】才释放（事务内方法专用）。
+     *
+     * <p>如果锁在事务提交前释放，会存在"锁已释放但数据未提交"的窗口：
+     * 第二个请求拿到锁后读到旧状态，照样通过状态机校验。
+     * 通过 Spring 事务同步回调把释放推迟到 afterCompletion（提交或回滚之后）；
+     * 无事务上下文时（如单元测试）立即释放。
+     */
+    public <T> T executeWithLockAfterCommit(String key, long ttlSeconds, Supplier<T> action) {
+        String value = UUID.randomUUID().toString();
+        if (!tryLock(key, value, ttlSeconds)) {
+            throw new BusinessException("操作进行中，请勿重复操作");
+        }
+        try {
+            return action.get();
+        } finally {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        unlock(key, value);
+                    }
+                });
+            } else {
+                unlock(key, value);
+            }
+        }
     }
 }

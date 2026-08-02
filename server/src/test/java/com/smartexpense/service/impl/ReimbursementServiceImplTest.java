@@ -35,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,9 +63,12 @@ class ReimbursementServiceImplTest {
     void injectBaseMapper() {
         ReflectionTestUtils.setField(service, "baseMapper", reimbursementMapper);
         // 默认透传：锁内 action 直接执行、加锁成功——让业务断言聚焦在业务逻辑上
-        lenient().when(redisLock.executeWithLock(anyString(), anyLong(), any()))
-                .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(2)).get());
-        lenient().when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(true);
+        // 注意防空：后续 doThrow 重新打桩时 when() 会触发本 stub 且参数为 null
+        lenient().when(redisLock.executeWithLockAfterCommit(anyString(), anyLong(), any()))
+                .thenAnswer(inv -> {
+                    Supplier<?> action = inv.getArgument(2);
+                    return action != null ? action.get() : null;
+                });
     }
 
     private SysUser user(long id, int role, long deptId) {
@@ -257,13 +261,15 @@ class ReimbursementServiceImplTest {
 
     @Test
     void submit_duplicateConcurrent_shouldThrow() {
-        when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(false); // 已有请求在提交
+        // 已有请求在提交：锁拿不到时 executeWithLockAfterCommit 抛业务异常
+        doThrow(new BusinessException("提交处理中，请勿重复提交"))
+                .when(redisLock).executeWithLockAfterCommit(anyString(), anyLong(), any());
 
         assertThrows(BusinessException.class, () -> service.submit(1L));
     }
 
     @Test
-    void submit_success_shouldReleaseIdempotencyKey() {
+    void submit_success_shouldUseIdempotencyKey() {
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(2L);
             when(userMapper.selectById(2L)).thenReturn(user(2L, 1, 2L));
@@ -274,7 +280,8 @@ class ReimbursementServiceImplTest {
 
             service.submit(1L);
 
-            verify(redisLock).unlock(eq("idem:submit:1"), anyString());
+            // 幂等锁 key：事务提交后由 RedisLock 内部释放
+            verify(redisLock).executeWithLockAfterCommit(eq("idem:submit:1"), eq(10L), any());
         }
     }
 
@@ -288,7 +295,7 @@ class ReimbursementServiceImplTest {
 
             service.approve(1L, 1, "同意");
 
-            verify(redisLock).executeWithLock(eq("lock:reimb:approve:1"), eq(10L), any());
+            verify(redisLock).executeWithLockAfterCommit(eq("lock:reimb:approve:1"), eq(10L), any());
         }
     }
 
@@ -302,7 +309,7 @@ class ReimbursementServiceImplTest {
 
             service.pay(1L);
 
-            verify(redisLock).executeWithLock(eq("lock:reimb:pay:1"), eq(10L), any());
+            verify(redisLock).executeWithLockAfterCommit(eq("lock:reimb:pay:1"), eq(10L), any());
         }
     }
 

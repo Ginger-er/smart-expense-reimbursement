@@ -122,6 +122,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatYuan, formatDate } from '@/utils/format'
+import { fetchAll } from '@/utils/page'
 import { reimbursementStatus } from '@/utils/status'
 import { Download, Money, Tickets, Checked, DataAnalysis } from '@element-plus/icons-vue'
 import { getReportStats, exportReport } from '@/api/report'
@@ -204,23 +205,12 @@ const fetchData = async () => {
   loading.value = true
   try {
     const [startDate, endDate] = query.dateRange || [null, null]
-    // 后端分页插件单页上限 100 条，循环翻页取全量，避免报表明细被静默截断
-    const all: any[] = []
-    let pageNum = 1
-    while (true) {
-      const res: any = await getReimbursementList({
-        pageNum,
-        pageSize: 100,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined
-      })
-      const list = (res.data || []) as any[]
-      all.push(...list)
-      if (list.length < 100) {
-        break
-      }
-      pageNum++
-    }
+    const all = await fetchAll(pageNum => getReimbursementList({
+      pageNum,
+      pageSize: 100,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined
+    }))
     // 明细与统计卡片口径一致：排除草稿
     allDetail.value = all.filter((r: any) => r.status !== 0)
   } catch {

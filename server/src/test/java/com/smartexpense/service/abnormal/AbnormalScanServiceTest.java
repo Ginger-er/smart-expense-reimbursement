@@ -2,17 +2,23 @@ package com.smartexpense.service.abnormal;
 
 import com.smartexpense.entity.AbnormalRecord;
 import com.smartexpense.mapper.AbnormalRecordMapper;
+import com.smartexpense.redis.RedisLock;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,9 +30,16 @@ class AbnormalScanServiceTest {
     private AbnormalRuleEngine ruleEngine;
     @Mock
     private AbnormalRecordMapper recordMapper;
+    @Mock
+    private RedisLock redisLock;
 
     @InjectMocks
     private AbnormalScanService service;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(true);
+    }
 
     private AbnormalRecord record(String code, String bizKey) {
         AbnormalRecord r = new AbnormalRecord();
@@ -40,7 +53,6 @@ class AbnormalScanServiceTest {
     @Test
     void scan_shouldInsertNewRecords() {
         when(ruleEngine.scan(any(), any())).thenReturn(List.of(record("A001", "k1")));
-        when(recordMapper.selectCount(any())).thenReturn(0L); // 不存在，插入
 
         int inserted = service.scan(LocalDate.of(2026, 8, 22));
 
@@ -49,20 +61,29 @@ class AbnormalScanServiceTest {
     }
 
     @Test
-    void scan_existingRecord_shouldSkipDedup() {
+    void scan_duplicateKey_shouldSkipDedup() {
         when(ruleEngine.scan(any(), any())).thenReturn(List.of(record("A001", "k1")));
-        when(recordMapper.selectCount(any())).thenReturn(1L); // 已存在，跳过
+        when(recordMapper.insert(any(AbnormalRecord.class)))
+                .thenThrow(new DuplicateKeyException("uk_rule_biz 冲突")); // 已存在，跳过
 
         int inserted = service.scan(LocalDate.of(2026, 8, 22));
 
         assertEquals(0, inserted);
-        verify(recordMapper, never()).insert(any(AbnormalRecord.class));
+    }
+
+    @Test
+    void scan_lockBusy_shouldSkipWithoutScanning() {
+        when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(false); // 已有扫描在跑
+
+        int inserted = service.scan(LocalDate.of(2026, 8, 22));
+
+        assertEquals(0, inserted);
+        verify(ruleEngine, never()).scan(any(), any());
     }
 
     @Test
     void scan_shouldSetHandledAndCreateTime() {
         when(ruleEngine.scan(any(), any())).thenReturn(List.of(record("A002", "inv-9")));
-        when(recordMapper.selectCount(any())).thenReturn(0L);
 
         service.scan(LocalDate.of(2026, 8, 22));
 

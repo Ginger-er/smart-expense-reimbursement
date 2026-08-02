@@ -52,8 +52,8 @@ public class AmountSurgeRule implements AbnormalRule {
             r.setBizKey(userId + "|" + month.format(DateTimeFormatter.ofPattern("yyyy-MM")));
             r.setUserId(userId);
             r.setMessage("本月报销总额 ¥" + cur.stripTrailingZeros().toPlainString()
-                    + " 较上月 ¥" + prev.stripTrailingZeros().toPlainString()
-                    + " 增长 " + rate + " 倍，超过 1.5 倍阈值");
+                    + " 为上月 ¥" + prev.stripTrailingZeros().toPlainString()
+                    + " 的 " + rate.stripTrailingZeros().toPlainString() + " 倍，超过 1.5 倍阈值");
             records.add(r);
         }
         return records;

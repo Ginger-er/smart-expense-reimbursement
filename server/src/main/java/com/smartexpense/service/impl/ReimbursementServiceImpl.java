@@ -77,16 +77,10 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Transactional
     public Reimbursement submit(Long id) {
         // 幂等互斥：SETNX 抢占标记，双击/并发提交只会成功一次；
+        // 锁在事务提交后才释放（否则存在"锁已释放但状态未提交"的窗口）；
         // Redis 不可用时降级放行，由下方状态机校验（status 0/4 才可提交）兜底
-        String token = UUID.randomUUID().toString();
-        if (!redisLock.tryLock(IDEM_SUBMIT_PREFIX + id, token, 10)) {
-            throw new BusinessException("提交处理中，请勿重复提交");
-        }
-        try {
+        return redisLock.executeWithLockAfterCommit(IDEM_SUBMIT_PREFIX + id, 10, () -> {
             Reimbursement reimbursement = getById(id);
-            if (reimbursement == null) {
-                throw new BusinessException("报销单不存在");
-            }
             if (reimbursement.getStatus() != 0 && reimbursement.getStatus() != 4) {
                 throw new BusinessException("只有草稿或已驳回状态的报销单才能提交");
             }
@@ -118,10 +112,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
             log.info("报销单提交成功, id: {}, totalAmount: {}", id, totalAmount);
             return reimbursement;
-        } finally {
-            // 无论成功失败立即释放，失败后用户可立即重试，不用等 10s 过期
-            redisLock.unlock(IDEM_SUBMIT_PREFIX + id, token);
-        }
+        });
     }
 
     @Override
@@ -129,8 +120,8 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     public Reimbursement approve(Long id, Integer action, String comment) {
         // 审批是"校验 → 插审批记录 → 改状态"的复合操作，并发时可能写入两条审批记录、
         // 状态互相覆盖（last-write-wins），用分布式锁串行化同一单据的审批；
-        // 拿不到锁说明有请求正在处理，直接提示前端
-        return redisLock.executeWithLock(LOCK_APPROVE_PREFIX + id, 10, () -> {
+        // 锁在事务提交后才释放，避免"解锁了但状态未提交"被并发请求读到旧状态
+        return redisLock.executeWithLockAfterCommit(LOCK_APPROVE_PREFIX + id, 10, () -> {
             if (action == null || (action != 1 && action != 2)) {
                 throw new BusinessException("无效的审批操作");
             }
@@ -215,9 +206,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Override
     @Transactional
     public Reimbursement pay(Long id) {
-        // 双层防护：分布式锁挡掉并发重复打款请求；
+        // 双层防护：分布式锁挡掉并发重复打款请求（事务提交后才释放）；
         // 即使锁失效（Redis 宕机/多实例锁粒度问题），下方乐观更新 WHERE status=3 依然兜底
-        return redisLock.executeWithLock(LOCK_PAY_PREFIX + id, 10, () -> {
+        return redisLock.executeWithLockAfterCommit(LOCK_PAY_PREFIX + id, 10, () -> {
             Reimbursement reimbursement = getById(id);
             if (reimbursement == null) {
                 throw new BusinessException("报销单不存在");

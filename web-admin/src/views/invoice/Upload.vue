@@ -125,6 +125,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadFile } from 'element-plus'
 import { formatYuan } from '@/utils/format'
+import { fetchAll } from '@/utils/page'
 import { invoiceType } from '@/utils/status'
 import { UploadFilled, Loading, CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { uploadInvoice, confirmInvoice, getInvoiceDetail } from '@/api/invoice'
@@ -149,18 +150,7 @@ let nextKey = 1
 
 const loadReimburseOptions = async () => {
   try {
-    // 后端分页上限 100 条/页，循环翻页取全部草稿，避免下拉漏单
-    const all: any[] = []
-    let pageNum = 1
-    while (true) {
-      const res: any = await getReimbursementList({ pageNum, pageSize: 100, status: 0 })
-      const list = (res.data || []) as any[]
-      all.push(...list)
-      if (list.length < 100) {
-        break
-      }
-      pageNum++
-    }
+    const all = await fetchAll(pageNum => getReimbursementList({ pageNum, pageSize: 100, status: 0 }))
     reimburseOptions.value = all.map((r: any) => ({ id: r.id, label: `${r.applicantName} · ${r.remark || '报销单'} · ¥${formatYuan(r.amount || 0)} · ${r.orderNo}` }))
   } catch {
     /* 忽略 */

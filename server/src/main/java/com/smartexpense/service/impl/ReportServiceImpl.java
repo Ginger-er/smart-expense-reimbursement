@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,6 +30,8 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public ReportStatsVO stats(String startDate, String endDate) {
+        validateDateParam(startDate);
+        validateDateParam(endDate);
         SysUser current = userMapper.selectById(StpUtil.getLoginIdAsLong());
         // 数据范围：员工看自己、领导看本部门、财务/管理员看全部
         Long userId = current.getRole() == 1 ? current.getId() : null;
@@ -70,5 +73,16 @@ public class ReportServiceImpl implements ReportService {
         return reimbursementService.exportList(null, null, startDate, endDate).stream()
                 .filter(e -> e.getStatus() != null && e.getStatus() != 0)
                 .collect(Collectors.toList());
+    }
+
+    /** 日期参数必须为 yyyy-MM-dd：非法值既不参与 SQL 也不进缓存 key，避免任意字符串撑爆 Redis */
+    private void validateDateParam(String date) {
+        if (date != null && !date.isEmpty()) {
+            try {
+                LocalDate.parse(date);
+            } catch (Exception e) {
+                throw new BusinessException("日期格式错误，应为 yyyy-MM-dd");
+            }
+        }
     }
 }

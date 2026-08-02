@@ -200,8 +200,11 @@ const handleDelete = async (row: any) => {
   }
 }
 
-// 有识别中的发票时自动刷新，识别全部完成后停止
+// 有识别中的发票时自动刷新，识别全部完成后停止；
+// 最多刷新 10 次（约 30 秒），避免异常情况下无限轮询打接口
+const MAX_AUTO_REFRESH = 10
 let refreshTimer: number | undefined
+let refreshCount = 0
 
 const stopAutoRefresh = () => {
   if (refreshTimer != null) {
@@ -212,8 +215,14 @@ const stopAutoRefresh = () => {
 
 const startAutoRefresh = () => {
   if (refreshTimer != null) return
+  refreshCount = 0
   refreshTimer = window.setInterval(() => {
     if (allItems.value.some((i) => i.ocrStatus === 0)) {
+      refreshCount++
+      if (refreshCount > MAX_AUTO_REFRESH) {
+        stopAutoRefresh()
+        return
+      }
       fetchData()
     } else {
       stopAutoRefresh()

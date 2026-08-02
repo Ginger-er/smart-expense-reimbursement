@@ -246,6 +246,8 @@ public class InvoiceServiceImpl extends ServiceImpl<InvoiceMapper, Invoice> impl
         if (current.getRole() == 1) {
             wrapper.eq(Invoice::getUserId, current.getId());
         } else if (current.getRole() == 2) {
+            // deptId 来自当前登录用户的数据库记录，非请求输入，无注入风险；
+            // 如未来改为请求参数，必须换参数化写法
             wrapper.inSql(Invoice::getUserId, "SELECT id FROM sys_user WHERE dept_id = " + current.getDeptId());
         }
         wrapper.orderByDesc(Invoice::getCreateTime);

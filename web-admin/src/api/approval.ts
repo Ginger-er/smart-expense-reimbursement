@@ -1,5 +1,6 @@
 import { getTripList } from './trip'
 import { getReimbursementList } from './reimbursement'
+import { fetchAll } from '@/utils/page'
 
 export interface ApprovalItem {
   id: number
@@ -39,23 +40,6 @@ function mapTrip(t: any): ApprovalItem {
     status: t.status,
     submitTime: t.createTime
   }
-}
-
-// 后端分页插件单页上限 100 条，pageSize 传 500 会被静默截断导致漏单，
-// 这里循环翻页取回全量数据
-async function fetchAll(fetcher: (pageNum: number) => Promise<any>): Promise<any[]> {
-  const all: any[] = []
-  let pageNum = 1
-  while (true) {
-    const res: any = await fetcher(pageNum)
-    const list = (res?.data || []) as any[]
-    all.push(...list)
-    if (list.length < 100) {
-      break
-    }
-    pageNum++
-  }
-  return all
 }
 
 // 待审批：报销(status 1,2) + 出差(status 1,2)

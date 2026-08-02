@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 
 @Slf4j
 @Component
@@ -73,19 +74,20 @@ public class DataInitializer implements CommandLineRunner {
         initDemoTrips();
     }
 
-    /** 演示预警记录 3 条（对应 3 条规则），预警页开箱即有内容可看 */
+    /** 演示预警记录 3 条（对应 3 条规则），预警页开箱即有内容可看。
+     *  bizKey 带 demo- 前缀，避免与真实规则扫描的去重键冲突，压制真实预警 */
     private void initDemoAbnormalRecords() {
         if (abnormalRecordMapper.selectCount(new LambdaQueryWrapper<>()) > 0) return;
 
         abnormalRecordMapper.insert(buildAbnormalRecord(
-                "A001", "重复发票", "31002408881241|2", null, 2L, 2L,
+                "A001", "重复发票", "demo-31002408881241|2", null, 2L, 2L,
                 "发票号 31002408881241 同时出现在多个报销单中，疑似重复报销"));
         abnormalRecordMapper.insert(buildAbnormalRecord(
-                "A002", "发票日期异常", "inv-1", null, 1L, 2L,
+                "A002", "发票日期异常", "demo-inv-1", null, 1L, 2L,
                 "发票开票日期不在关联出差单的行程范围内，请核对行程与票据时间"));
         abnormalRecordMapper.insert(buildAbnormalRecord(
-                "A003", "金额突增", "2|2026-08", 1L, null, 2L,
-                "本月报销总额较上月增长超过 1.5 倍阈值，请关注报销合理性"));
+                "A003", "金额突增", "demo-2|" + YearMonth.now(), 1L, null, 2L,
+                "本月报销总额为上月的 3.02 倍，超过 1.5 倍阈值，请关注报销合理性"));
         log.info("演示预警记录已创建");
     }
 

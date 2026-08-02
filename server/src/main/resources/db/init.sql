@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS abnormal_record (
     handled          TINYINT      NOT NULL DEFAULT 0 COMMENT '是否已处理(0未处理 1已处理)',
     handle_time      DATETIME     DEFAULT NULL COMMENT '处理时间',
     create_time      DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    KEY idx_rule_biz (rule_code, biz_key),
+    UNIQUE KEY uk_rule_biz (rule_code, biz_key),
     KEY idx_handled (handled),
     KEY idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='费用异常预警记录';
