@@ -131,10 +131,6 @@
           <a class="mode-toggle" @click="toggleMode">
             {{ mode === 'login' ? '没有账号？立即注册' : '已有账号？去登录' }}
           </a>
-          <span v-if="mode === 'login'" class="demo-hint">
-            <span class="hint-dot" />
-            演示账号：admin / 123456
-          </span>
         </div>
       </div>
     </div>
@@ -527,30 +523,6 @@ onMounted(() => loadDepts())
   :deep(.el-select__placeholder) {
     color: #b0b0bc;
   }
-}
-
-.demo-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: $text-placeholder;
-  padding: 8px 20px;
-  background: #f5f5f7;
-  border-radius: 20px;
-}
-
-.hint-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: $color-success;
-  animation: pulse-dot 2s ease infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
 }
 
 // ===== 响应式 =====
