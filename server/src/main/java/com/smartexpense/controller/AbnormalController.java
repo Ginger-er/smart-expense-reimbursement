@@ -50,6 +50,10 @@ public class AbnormalController {
     @PostMapping("/scan")
     public Result<Integer> scan() {
         int inserted = abnormalService.scan();
+        if (inserted < 0) {
+            // -1 = 同日扫描任务已在执行
+            return Result.error("扫描任务已在执行中，请稍后再试");
+        }
         return Result.success("扫描完成，新增 " + inserted + " 条预警", inserted);
     }
 }

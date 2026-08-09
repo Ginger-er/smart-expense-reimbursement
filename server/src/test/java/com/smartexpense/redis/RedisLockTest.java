@@ -10,6 +10,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -148,5 +151,28 @@ class RedisLockTest {
                     return "ok";
                 }));
         assertFalse(ran.get());
+    }
+
+    @Test
+    void executeWithLockAfterCommit_withActiveTx_shouldDeferUnlockToAfterCompletion() {
+        when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+
+        // 模拟事务上下文：注册事务同步后，锁应推迟到事务结束才释放
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            redisLock.executeWithLockAfterCommit("k", 10, () -> "ok");
+
+            // 事务未结束：锁尚未释放
+            verify(redisTemplate, never()).execute(any(DefaultRedisScript.class), anyList(), anyString());
+
+            // 模拟 Spring 在事务提交后触发的回调
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        // 提交回调后才释放锁
+        verify(redisTemplate).execute(any(DefaultRedisScript.class), anyList(), anyString());
     }
 }

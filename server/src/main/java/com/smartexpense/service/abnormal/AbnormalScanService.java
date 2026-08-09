@@ -1,5 +1,6 @@
 package com.smartexpense.service.abnormal;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.smartexpense.entity.AbnormalRecord;
 import com.smartexpense.mapper.AbnormalRecordMapper;
 import com.smartexpense.redis.RedisLock;
@@ -36,14 +37,15 @@ public class AbnormalScanService {
         log.info("每日异常预警扫描完成，新增 {} 条记录", inserted);
     }
 
-    /** 扫描指定日期（当天 00:00 ~ 次日 00:00）的数据，返回新增记录数。
+    /** 扫描指定日期（当天 00:00 ~ 次日 00:00）的数据，返回新增记录数；
+     *  返回 -1 表示同日扫描任务已在执行被跳过。
      *  单飞保护：同一天的扫描任务同时只会执行一个（定时任务与手动触发并发时跳过） */
     public int scan(LocalDate date) {
         String token = UUID.randomUUID().toString();
         String lockKey = SCAN_LOCK_PREFIX + date;
         if (!redisLock.tryLock(lockKey, token, 30)) {
             log.info("同日扫描任务已在执行，跳过本次, date: {}", date);
-            return 0;
+            return -1;
         }
         try {
             return doScan(date);
@@ -61,6 +63,10 @@ public class AbnormalScanService {
         for (AbnormalRecord r : hits) {
             r.setHandled(0);
             r.setCreateTime(LocalDateTime.now());
+            // 防御性预检：老库可能没有 (rule_code, biz_key) 唯一索引，先查一次避免重复堆积
+            if (alreadyExists(r.getRuleCode(), r.getBizKey())) {
+                continue;
+            }
             try {
                 recordMapper.insert(r);
                 inserted++;
@@ -70,5 +76,11 @@ public class AbnormalScanService {
             }
         }
         return inserted;
+    }
+
+    private boolean alreadyExists(String ruleCode, String bizKey) {
+        return recordMapper.selectCount(new LambdaQueryWrapper<AbnormalRecord>()
+                .eq(AbnormalRecord::getRuleCode, ruleCode)
+                .eq(AbnormalRecord::getBizKey, bizKey)) > 0;
     }
 }

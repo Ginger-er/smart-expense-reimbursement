@@ -39,6 +39,8 @@ class AbnormalScanServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(true);
+        // 防御性预检默认不存在（有唯一索引的库上靠 DuplicateKeyException 兜底）
+        lenient().when(recordMapper.selectCount(any())).thenReturn(0L);
     }
 
     private AbnormalRecord record(String code, String bizKey) {
@@ -72,12 +74,23 @@ class AbnormalScanServiceTest {
     }
 
     @Test
-    void scan_lockBusy_shouldSkipWithoutScanning() {
-        when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(false); // 已有扫描在跑
+    void scan_existingByPreCheck_shouldSkipWithoutInsert() {
+        when(ruleEngine.scan(any(), any())).thenReturn(List.of(record("A001", "k1")));
+        when(recordMapper.selectCount(any())).thenReturn(1L); // 预检发现已存在（老库无唯一索引场景）
 
         int inserted = service.scan(LocalDate.of(2026, 8, 22));
 
         assertEquals(0, inserted);
+        verify(recordMapper, never()).insert(any(AbnormalRecord.class));
+    }
+
+    @Test
+    void scan_lockBusy_shouldReturnMinusOneWithoutScanning() {
+        when(redisLock.tryLock(anyString(), anyString(), anyLong())).thenReturn(false); // 已有扫描在跑
+
+        int inserted = service.scan(LocalDate.of(2026, 8, 22));
+
+        assertEquals(-1, inserted);
         verify(ruleEngine, never()).scan(any(), any());
     }
 
