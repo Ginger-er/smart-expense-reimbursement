@@ -179,7 +179,9 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements Tr
         }
         if (current.getRole() == 2) {
             SysUser applicant = userMapper.selectById(trip.getUserId());
-            if (applicant == null || !current.getDeptId().equals(applicant.getDeptId())) {
+            // 部门缺失按不可审处理，避免 NPE
+            if (applicant == null || current.getDeptId() == null
+                    || !current.getDeptId().equals(applicant.getDeptId())) {
                 throw new BusinessException("只能审批本部门的出差单");
             }
         }

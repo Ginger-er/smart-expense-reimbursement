@@ -40,8 +40,10 @@ public class DashboardServiceImpl implements DashboardService {
             DashboardStatsVO vo = new DashboardStatsVO();
             vo.setPendingApproval(dashboardMapper.countPendingReimbursement(userId, deptId)
                     + dashboardMapper.countPendingTrip(userId, deptId));
-            String monthStart = LocalDate.now().withDayOfMonth(1) + " 00:00:00";
-            vo.setMonthTotalAmount(dashboardMapper.sumMonthTotal(userId, deptId, monthStart));
+            LocalDate today = LocalDate.now();
+            String monthStart = today.withDayOfMonth(1) + " 00:00:00";
+            String monthEnd = today.plusMonths(1).withDayOfMonth(1) + " 00:00:00";
+            vo.setMonthTotalAmount(dashboardMapper.sumMonthTotal(userId, deptId, monthStart, monthEnd));
             vo.setReimbursementCount(dashboardMapper.countReimbursement(userId, deptId));
             vo.setInvoiceCount(dashboardMapper.countInvoice(userId, deptId));
             vo.setMyDraftCount(dashboardMapper.countMyDraft(current.getId()));

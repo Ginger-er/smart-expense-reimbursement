@@ -12,6 +12,7 @@ export interface ApprovalItem {
   amount: number
   status: number
   submitTime: string
+  userId?: number
 }
 
 function mapReimbursement(r: any): ApprovalItem {
@@ -24,7 +25,8 @@ function mapReimbursement(r: any): ApprovalItem {
     title: r.remark || r.orderNo,
     amount: r.amount,
     status: r.status,
-    submitTime: r.createTime
+    submitTime: r.createTime,
+    userId: r.userId
   }
 }
 
@@ -38,7 +40,8 @@ function mapTrip(t: any): ApprovalItem {
     title: t.reason || t.destination,
     amount: t.budget,
     status: t.status,
-    submitTime: t.createTime
+    submitTime: t.createTime,
+    userId: t.userId
   }
 }
 

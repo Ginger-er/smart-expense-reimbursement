@@ -63,8 +63,11 @@
         </el-table-column>
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="activeTab === 'pending'" type="primary" size="small" @click="handleApprove(row)">
+            <el-button v-if="activeTab === 'pending' && canApprove(row)" type="primary" size="small" @click="handleApprove(row)">
               审批
+            </el-button>
+            <el-button v-else-if="activeTab === 'pending'" text type="primary" size="small" @click="handleView(row)">
+              查看
             </el-button>
             <template v-else>
               <el-button text type="primary" size="small" @click="handleView(row)">查看</el-button>
@@ -167,6 +170,18 @@ const handleTabChange = () => {
 const handleQuery = () => {
   query.page = 1
   fetchData()
+}
+
+// 当前用户是否可审批该行：不能审自己的单子；二级审批(状态2)只能财务/管理员操作
+const canApprove = (row: any) => {
+  const role = userStore.userInfo?.role ?? 1
+  if (row.userId === userStore.userInfo?.id) {
+    return false
+  }
+  if (row.type === 'REIMBURSEMENT' && row.status === 2 && role === 2) {
+    return false
+  }
+  return true
 }
 
 const handleApprove = (row: any) => {

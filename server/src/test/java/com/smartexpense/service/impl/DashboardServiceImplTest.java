@@ -56,7 +56,7 @@ class DashboardServiceImplTest {
                 .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(2)).get());
         when(dashboardMapper.countPendingReimbursement(any(), any())).thenReturn(2);
         when(dashboardMapper.countPendingTrip(any(), any())).thenReturn(1);
-        when(dashboardMapper.sumMonthTotal(any(), any(), anyString())).thenReturn(new BigDecimal("5000"));
+        when(dashboardMapper.sumMonthTotal(any(), any(), anyString(), anyString())).thenReturn(new BigDecimal("5000"));
         when(dashboardMapper.countReimbursement(any(), any())).thenReturn(6);
         when(dashboardMapper.countInvoice(any(), any())).thenReturn(9);
         when(dashboardMapper.countMyDraft(anyLong())).thenReturn(1);
@@ -94,7 +94,7 @@ class DashboardServiceImplTest {
                 .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(2)).get());
         when(dashboardMapper.countPendingReimbursement(any(), any())).thenReturn(0);
         when(dashboardMapper.countPendingTrip(any(), any())).thenReturn(0);
-        when(dashboardMapper.sumMonthTotal(any(), any(), anyString())).thenReturn(BigDecimal.ZERO);
+        when(dashboardMapper.sumMonthTotal(any(), any(), anyString(), anyString())).thenReturn(BigDecimal.ZERO);
         when(dashboardMapper.countReimbursement(any(), any())).thenReturn(0);
         when(dashboardMapper.countInvoice(any(), any())).thenReturn(0);
         when(dashboardMapper.countMyDraft(anyLong())).thenReturn(0);

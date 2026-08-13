@@ -9,10 +9,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartexpense.entity.Invoice;
 import com.smartexpense.entity.Reimbursement;
 import com.smartexpense.entity.SysUser;
+import com.smartexpense.entity.Trip;
 import com.smartexpense.exception.BusinessException;
 import com.smartexpense.mapper.InvoiceMapper;
 import com.smartexpense.mapper.ReimbursementMapper;
 import com.smartexpense.mapper.SysUserMapper;
+import com.smartexpense.mapper.TripMapper;
 import com.smartexpense.service.BaiduOcrClient;
 import com.smartexpense.service.InvoiceService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,7 @@ public class InvoiceServiceImpl extends ServiceImpl<InvoiceMapper, Invoice> impl
     private final InvoiceMapper invoiceMapper;
     private final SysUserMapper userMapper;
     private final ReimbursementMapper reimbursementMapper;
+    private final TripMapper tripMapper;
     private final BaiduOcrClient baiduOcrClient;
 
     @Value("${app.upload-dir:uploads}")
@@ -64,10 +67,29 @@ public class InvoiceServiceImpl extends ServiceImpl<InvoiceMapper, Invoice> impl
             }
         }
 
+        // 关联出差单时校验：与报销单一致——存在、属于当前用户、且为草稿
+        if (tripId != null) {
+            Trip trip = tripMapper.selectById(tripId);
+            if (trip == null) {
+                throw new BusinessException("关联的出差申请不存在");
+            }
+            SysUser current = userMapper.selectById(StpUtil.getLoginIdAsLong());
+            if (current.getRole() != 4 && !trip.getUserId().equals(current.getId())) {
+                throw new BusinessException("只能向自己的出差单上传发票");
+            }
+            if (trip.getStatus() != 0) {
+                throw new BusinessException("只有草稿状态的出差单才能上传发票");
+            }
+        }
+
         String originalFilename = file.getOriginalFilename();
         String suffix = FileUtil.getSuffix(originalFilename);
         if (suffix == null || suffix.isEmpty()) {
             suffix = "jpg";
+        }
+        // 扩展名白名单：阻止 HTML/SVG 等可执行文件上传后在应用同源下渲染（存储型 XSS）
+        if (!List.of("jpg", "jpeg", "png", "pdf").contains(suffix.toLowerCase())) {
+            throw new BusinessException("仅支持 JPG/PNG/PDF 格式的发票文件");
         }
         String fileName = IdUtil.fastSimpleUUID() + "." + suffix;
 
@@ -300,6 +322,13 @@ public class InvoiceServiceImpl extends ServiceImpl<InvoiceMapper, Invoice> impl
         SysUser current = userMapper.selectById(StpUtil.getLoginIdAsLong());
         if (current.getRole() != 4 && !invoice.getUserId().equals(current.getId())) {
             throw new BusinessException("只能操作自己的发票");
+        }
+        // 与 confirm 一致：报销单离开草稿后不允许删发票，防止汇总金额与明细不一致
+        if (invoice.getReimbursementId() != null) {
+            Reimbursement reimb = reimbursementMapper.selectById(invoice.getReimbursementId());
+            if (reimb == null || reimb.getStatus() != 0) {
+                throw new BusinessException("只有草稿状态的报销单才能删除发票");
+            }
         }
         removeById(id);
         log.info("发票删除成功, id: {}", id);

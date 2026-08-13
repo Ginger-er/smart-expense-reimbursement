@@ -20,10 +20,11 @@ const REIMBURSEMENT_STATUS: Record<number, StatusMeta> = {
   5: { label: '已打款', tag: 'info' }
 }
 
-// ===== 出差申请状态（单级审批，无「审批中」） =====
+// ===== 出差申请状态（单级审批） =====
 const TRIP_STATUS: Record<number, StatusMeta> = {
   0: { label: '草稿', tag: 'info' },
   1: { label: '已提交', tag: 'primary' },
+  2: { label: '审批中', tag: 'warning' },
   3: { label: '已通过', tag: 'success' },
   4: { label: '已驳回', tag: 'danger' }
 }

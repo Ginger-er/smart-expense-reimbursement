@@ -8,6 +8,7 @@ import com.smartexpense.exception.BusinessException;
 import com.smartexpense.mapper.InvoiceMapper;
 import com.smartexpense.mapper.ReimbursementMapper;
 import com.smartexpense.mapper.SysUserMapper;
+import com.smartexpense.mapper.TripMapper;
 import com.smartexpense.service.BaiduOcrClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,8 @@ class InvoiceServiceImplTest {
     private SysUserMapper userMapper;
     @Mock
     private ReimbursementMapper reimbursementMapper;
+    @Mock
+    private TripMapper tripMapper;
     @Mock
     private BaiduOcrClient baiduOcrClient;
 

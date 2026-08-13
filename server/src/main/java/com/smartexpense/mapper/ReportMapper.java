@@ -13,7 +13,7 @@ import java.util.List;
 public interface ReportMapper {
 
     @Select("<script>SELECT COALESCE(SUM(r.total_amount), 0) FROM reimbursement r LEFT JOIN sys_user u ON r.user_id = u.id " +
-            "WHERE r.status != 0 " +
+            "WHERE r.status NOT IN (0,4) " +
             "<if test='userId != null'>AND r.user_id = #{userId}</if>" +
             "<if test='deptId != null'>AND u.dept_id = #{deptId}</if>" +
             "<if test='startDate != null and startDate != \"\"'>AND r.create_time &gt;= #{startDate}</if>" +
@@ -22,7 +22,7 @@ public interface ReportMapper {
                               @Param("startDate") String startDate, @Param("endDate") String endDate);
 
     @Select("<script>SELECT COUNT(*) FROM reimbursement r LEFT JOIN sys_user u ON r.user_id = u.id " +
-            "WHERE r.status != 0 " +
+            "WHERE r.status NOT IN (0,4) " +
             "<if test='userId != null'>AND r.user_id = #{userId}</if>" +
             "<if test='deptId != null'>AND u.dept_id = #{deptId}</if>" +
             "<if test='startDate != null and startDate != \"\"'>AND r.create_time &gt;= #{startDate}</if>" +
@@ -52,7 +52,7 @@ public interface ReportMapper {
             "FROM reimbursement r " +
             "JOIN sys_user u ON r.user_id = u.id " +
             "JOIN sys_dept d ON u.dept_id = d.id " +
-            "WHERE r.status != 0 " +
+            "WHERE r.status NOT IN (0,4) " +
             "<if test='userId != null'>AND r.user_id = #{userId}</if>" +
             "<if test='deptId != null'>AND u.dept_id = #{deptId}</if>" +
             "<if test='startDate != null and startDate != \"\"'>AND r.create_time &gt;= #{startDate}</if>" +
@@ -66,7 +66,7 @@ public interface ReportMapper {
             "FROM invoice i " +
             "JOIN reimbursement r ON i.reimbursement_id = r.id " +
             "LEFT JOIN sys_user u ON i.user_id = u.id " +
-            "WHERE r.status != 0 " + // 与 sumTotalAmount 口径一致：排除草稿报销单
+            "WHERE r.status NOT IN (0,4) " + // 与 sumTotalAmount 口径一致：排除草稿报销单
             "<if test='userId != null'>AND i.user_id = #{userId}</if>" +
             "<if test='deptId != null'>AND u.dept_id = #{deptId}</if>" +
             "<if test='startDate != null and startDate != \"\"'>AND i.create_time &gt;= #{startDate}</if>" +

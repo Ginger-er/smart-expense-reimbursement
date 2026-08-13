@@ -146,10 +146,11 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             if (reimbursement.getStatus() == 2 && role != 3 && role != 4) {
                 throw new BusinessException("当前单据需财务审批");
             }
-            // 一级审批（待审批）时，领导只能审本部门
+            // 一级审批（待审批）时，领导只能审本部门（部门缺失按不可审处理）
             if (reimbursement.getStatus() == 1 && role == 2) {
                 SysUser applicant = userMapper.selectById(reimbursement.getUserId());
-                if (applicant == null || !current.getDeptId().equals(applicant.getDeptId())) {
+                if (applicant == null || current.getDeptId() == null
+                        || !current.getDeptId().equals(applicant.getDeptId())) {
                     throw new BusinessException("只能审批本部门的报销单");
                 }
             }

@@ -24,13 +24,14 @@ public interface DashboardMapper {
     int countPendingTrip(@Param("userId") Long userId, @Param("deptId") Long deptId);
 
     @Select("<script>SELECT COALESCE(SUM(r.total_amount), 0) FROM reimbursement r LEFT JOIN sys_user u ON r.user_id = u.id " +
-            "WHERE r.status != 0 AND r.create_time >= #{monthStart} " +
+            "WHERE r.status NOT IN (0,4) AND r.create_time >= #{monthStart} AND r.create_time < #{monthEnd} " +
             "<if test='userId != null'>AND r.user_id = #{userId}</if>" +
             "<if test='deptId != null'>AND u.dept_id = #{deptId}</if></script>")
-    BigDecimal sumMonthTotal(@Param("userId") Long userId, @Param("deptId") Long deptId, @Param("monthStart") String monthStart);
+    BigDecimal sumMonthTotal(@Param("userId") Long userId, @Param("deptId") Long deptId,
+                             @Param("monthStart") String monthStart, @Param("monthEnd") String monthEnd);
 
     @Select("<script>SELECT COUNT(*) FROM reimbursement r LEFT JOIN sys_user u ON r.user_id = u.id " +
-            "WHERE 1=1 " +
+            "WHERE r.status != 0 " +
             "<if test='userId != null'>AND r.user_id = #{userId}</if>" +
             "<if test='deptId != null'>AND u.dept_id = #{deptId}</if></script>")
     int countReimbursement(@Param("userId") Long userId, @Param("deptId") Long deptId);
