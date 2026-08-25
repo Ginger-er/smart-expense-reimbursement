@@ -227,8 +227,7 @@ smart-expense-reimbursement/
 │   │   └── styles/                  # 样式
 │   └── package.json
 ├── deploy/                          # 部署配置（docker-compose、nginx）
-├── demo-invoices/                   # 发票 OCR 演示图片
-└── docs/                            # 项目文档
+└── demo-invoices/                   # 发票 OCR 演示图片
 ```
 
 ---
@@ -368,14 +367,6 @@ stateDiagram-v2
 | `SMART_EXPENSE_JWT_SECRET` | JWT 签名密钥（生产必须覆盖） | 本地开发默认值 |
 
 > 密钥仅通过环境变量或 `application-dev.yml`（已被 gitignore）注入，严禁提交到公开仓库。
-
----
-
-## 项目文档
-
-- [智能差旅报销系统_完整项目文档](docs/智能差旅报销系统_完整项目文档.md)
-- [模块详细设计](docs/模块详细设计.md)
-- [开发任务拆分](docs/开发任务拆分.md)
 
 ---
 
